@@ -15,6 +15,7 @@
 #include <iostream>
 #include <limits>
 
+#include "call/call.h"
 #include "modules/audio_coding/neteq/tools/packet.h"
 #include "modules/rtp_rtcp/include/rtp_header_parser.h"
 #include "rtc_base/checks.h"
@@ -40,7 +41,7 @@ std::unique_ptr<Packet> RtcEventLogSource::NextPacket() {
   for (; rtp_packet_index_ < parsed_stream_.GetNumberOfEvents();
        rtp_packet_index_++) {
     if (parsed_stream_.GetEventType(rtp_packet_index_) ==
-        ParsedRtcEventLogNew::EventType::RTP_EVENT) {
+        ParsedRtcEventLog::RTP_EVENT) {
       PacketDirection direction;
       size_t header_length;
       size_t packet_length;
@@ -66,7 +67,7 @@ std::unique_ptr<Packet> RtcEventLogSource::NextPacket() {
       }
 
       if (parsed_stream_.GetMediaType(packet->header().ssrc, direction) !=
-          ParsedRtcEventLogNew::MediaType::AUDIO) {
+          webrtc::ParsedRtcEventLog::MediaType::AUDIO) {
         continue;
       }
 
@@ -84,13 +85,13 @@ std::unique_ptr<Packet> RtcEventLogSource::NextPacket() {
 int64_t RtcEventLogSource::NextAudioOutputEventMs() {
   while (audio_output_index_ < parsed_stream_.GetNumberOfEvents()) {
     if (parsed_stream_.GetEventType(audio_output_index_) ==
-        ParsedRtcEventLogNew::EventType::AUDIO_PLAYOUT_EVENT) {
-      LoggedAudioPlayoutEvent playout_event =
-          parsed_stream_.GetAudioPlayout(audio_output_index_);
-      if (!(use_ssrc_filter_ && playout_event.ssrc != ssrc_)) {
-        audio_output_index_++;
-        return playout_event.timestamp_us / 1000;
-      }
+        ParsedRtcEventLog::AUDIO_PLAYOUT_EVENT) {
+      uint64_t timestamp_us = parsed_stream_.GetTimestamp(audio_output_index_);
+      // We call GetAudioPlayout only to check that the protobuf event is
+      // well-formed.
+      parsed_stream_.GetAudioPlayout(audio_output_index_, nullptr);
+      audio_output_index_++;
+      return timestamp_us / 1000;
     }
     audio_output_index_++;
   }

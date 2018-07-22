@@ -11,7 +11,6 @@
 package org.webrtc;
 
 import java.nio.ByteBuffer;
-import javax.annotation.Nullable;
 import org.webrtc.VideoFrame.I420Buffer;
 
 /** Implementation of VideoFrame.I420Buffer backed by Java direct byte buffers. */
@@ -24,10 +23,13 @@ public class JavaI420Buffer implements VideoFrame.I420Buffer {
   private final int strideY;
   private final int strideU;
   private final int strideV;
-  private final RefCountDelegate refCountDelegate;
+  private final Runnable releaseCallback;
+  private final Object refCountLock = new Object();
+
+  private int refCount;
 
   private JavaI420Buffer(int width, int height, ByteBuffer dataY, int strideY, ByteBuffer dataU,
-      int strideU, ByteBuffer dataV, int strideV, @Nullable Runnable releaseCallback) {
+      int strideU, ByteBuffer dataV, int strideV, Runnable releaseCallback) {
     this.width = width;
     this.height = height;
     this.dataY = dataY;
@@ -36,16 +38,9 @@ public class JavaI420Buffer implements VideoFrame.I420Buffer {
     this.strideY = strideY;
     this.strideU = strideU;
     this.strideV = strideV;
-    this.refCountDelegate = new RefCountDelegate(releaseCallback);
-  }
+    this.releaseCallback = releaseCallback;
 
-  private static void checkCapacity(ByteBuffer data, int width, int height, int stride) {
-    // The last row does not necessarily need padding.
-    final int minCapacity = stride * (height - 1) + width;
-    if (data.capacity() < minCapacity) {
-      throw new IllegalArgumentException(
-          "Buffer must be at least " + minCapacity + " bytes, but was " + data.capacity());
-    }
+    this.refCount = 1;
   }
 
   /** Wraps existing ByteBuffers into JavaI420Buffer object without copying the contents. */
@@ -64,11 +59,19 @@ public class JavaI420Buffer implements VideoFrame.I420Buffer {
     dataU = dataU.slice();
     dataV = dataV.slice();
 
-    final int chromaWidth = (width + 1) / 2;
     final int chromaHeight = (height + 1) / 2;
-    checkCapacity(dataY, width, height, strideY);
-    checkCapacity(dataU, chromaWidth, chromaHeight, strideU);
-    checkCapacity(dataV, chromaWidth, chromaHeight, strideV);
+    final int minCapacityY = strideY * height;
+    final int minCapacityU = strideU * chromaHeight;
+    final int minCapacityV = strideV * chromaHeight;
+    if (dataY.capacity() < minCapacityY) {
+      throw new IllegalArgumentException("Y-buffer must be at least " + minCapacityY + " bytes.");
+    }
+    if (dataU.capacity() < minCapacityU) {
+      throw new IllegalArgumentException("U-buffer must be at least " + minCapacityU + " bytes.");
+    }
+    if (dataV.capacity() < minCapacityV) {
+      throw new IllegalArgumentException("V-buffer must be at least " + minCapacityV + " bytes.");
+    }
 
     return new JavaI420Buffer(
         width, height, dataY, strideY, dataU, strideU, dataV, strideV, releaseCallback);
@@ -82,8 +85,7 @@ public class JavaI420Buffer implements VideoFrame.I420Buffer {
     int uPos = yPos + width * height;
     int vPos = uPos + strideUV * chromaHeight;
 
-    ByteBuffer buffer =
-        JniCommon.nativeAllocateByteBuffer(width * height + 2 * strideUV * chromaHeight);
+    ByteBuffer buffer = ByteBuffer.allocateDirect(width * height + 2 * strideUV * chromaHeight);
 
     buffer.position(yPos);
     buffer.limit(uPos);
@@ -97,8 +99,8 @@ public class JavaI420Buffer implements VideoFrame.I420Buffer {
     buffer.limit(vPos + strideUV * chromaHeight);
     ByteBuffer dataV = buffer.slice();
 
-    return new JavaI420Buffer(width, height, dataY, width, dataU, strideUV, dataV, strideUV,
-        () -> { JniCommon.nativeFreeByteBuffer(buffer); });
+    return new JavaI420Buffer(
+        width, height, dataY, width, dataU, strideUV, dataV, strideUV, null /* releaseCallback */);
   }
 
   @Override
@@ -152,12 +154,18 @@ public class JavaI420Buffer implements VideoFrame.I420Buffer {
 
   @Override
   public void retain() {
-    refCountDelegate.retain();
+    synchronized (refCountLock) {
+      ++refCount;
+    }
   }
 
   @Override
   public void release() {
-    refCountDelegate.release();
+    synchronized (refCountLock) {
+      if (--refCount == 0 && releaseCallback != null) {
+        releaseCallback.run();
+      }
+    }
   }
 
   @Override

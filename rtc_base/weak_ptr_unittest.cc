@@ -10,7 +10,6 @@
 
 #include <string>
 
-#include "rtc_base/event.h"
 #include "rtc_base/gunit.h"
 #include "rtc_base/task_queue.h"
 #include "rtc_base/weak_ptr.h"
@@ -225,7 +224,7 @@ TEST(WeakPtrTest, WeakPtrInitiateAndUseOnDifferentThreads) {
   // Test that it is OK to create a WeakPtr on one thread, but use it on
   // another. This tests that we do not trip runtime checks that ensure that a
   // WeakPtr is not used by multiple threads.
-  auto target = absl::make_unique<TargetWithFactory>();
+  auto target = rtc::MakeUnique<TargetWithFactory>();
   // Create weak ptr on main thread
   WeakPtr<Target> weak_ptr = target->factory.GetWeakPtr();
   rtc::TaskQueue queue("queue");

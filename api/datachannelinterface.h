@@ -16,6 +16,7 @@
 
 #include <string>
 
+#include "rtc_base/basictypes.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/copyonwritebuffer.h"
 #include "rtc_base/refcount.h"
@@ -23,7 +24,7 @@
 namespace webrtc {
 
 // C++ version of: https://www.w3.org/TR/webrtc/#idl-def-rtcdatachannelinit
-// TODO(deadbeef): Use absl::optional for the "-1 if unset" things.
+// TODO(deadbeef): Use rtc::Optional for the "-1 if unset" things.
 struct DataChannelInit {
   // Deprecated. Reliability is assumed, and channel will be unreliable if
   // maxRetransmitTime or MaxRetransmits is set.
@@ -61,10 +62,14 @@ struct DataChannelInit {
 // as binary or text.
 struct DataBuffer {
   DataBuffer(const rtc::CopyOnWriteBuffer& data, bool binary)
-      : data(data), binary(binary) {}
+      : data(data),
+        binary(binary) {
+  }
   // For convenience for unit tests.
   explicit DataBuffer(const std::string& text)
-      : data(text.data(), text.length()), binary(false) {}
+      : data(text.data(), text.length()),
+        binary(false) {
+  }
   size_t size() const { return data.size(); }
 
   rtc::CopyOnWriteBuffer data;
@@ -88,7 +93,7 @@ class DataChannelObserver {
   virtual void OnBufferedAmountChange(uint64_t previous_amount) {}
 
  protected:
-  virtual ~DataChannelObserver() = default;
+  virtual ~DataChannelObserver() {}
 };
 
 class DataChannelInterface : public rtc::RefCountInterface {
@@ -134,11 +139,11 @@ class DataChannelInterface : public rtc::RefCountInterface {
   // TODO(deadbeef): Remove these dummy implementations when all classes have
   // implemented these APIs. They should all just return the values the
   // DataChannel was created with.
-  virtual bool ordered() const;
-  virtual uint16_t maxRetransmitTime() const;
-  virtual uint16_t maxRetransmits() const;
-  virtual std::string protocol() const;
-  virtual bool negotiated() const;
+  virtual bool ordered() const { return false; }
+  virtual uint16_t maxRetransmitTime() const { return 0; }
+  virtual uint16_t maxRetransmits() const { return 0; }
+  virtual std::string protocol() const { return std::string(); }
+  virtual bool negotiated() const { return false; }
 
   // Returns the ID from the DataChannelInit, if it was negotiated out-of-band.
   // If negotiated in-band, this ID will be populated once the DTLS role is
@@ -170,7 +175,7 @@ class DataChannelInterface : public rtc::RefCountInterface {
   virtual bool Send(const DataBuffer& buffer) = 0;
 
  protected:
-  ~DataChannelInterface() override = default;
+  virtual ~DataChannelInterface() {}
 };
 
 }  // namespace webrtc

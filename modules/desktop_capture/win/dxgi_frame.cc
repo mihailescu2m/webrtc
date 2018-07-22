@@ -21,7 +21,8 @@
 
 namespace webrtc {
 
-DxgiFrame::DxgiFrame(SharedMemoryFactory* factory) : factory_(factory) {}
+DxgiFrame::DxgiFrame(SharedMemoryFactory* factory)
+    : factory_(factory) {}
 
 DxgiFrame::~DxgiFrame() = default;
 

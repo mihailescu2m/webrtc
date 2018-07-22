@@ -74,8 +74,6 @@ class NetworkMonitorInterface {
   virtual void OnNetworksChanged() = 0;
 
   virtual AdapterType GetAdapterType(const std::string& interface_name) = 0;
-  virtual AdapterType GetVpnUnderlyingAdapterType(
-      const std::string& interface_name) = 0;
 };
 
 class NetworkMonitorBase : public NetworkMonitorInterface,
@@ -88,9 +86,6 @@ class NetworkMonitorBase : public NetworkMonitorInterface,
   void OnNetworksChanged() override;
 
   void OnMessage(Message* msg) override;
-
-  AdapterType GetVpnUnderlyingAdapterType(
-      const std::string& interface_name) override;
 
  protected:
   Thread* worker_thread() { return worker_thread_; }

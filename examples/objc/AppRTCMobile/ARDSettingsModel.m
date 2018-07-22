@@ -39,11 +39,7 @@ NS_ASSUME_NONNULL_BEGIN
   NSArray<NSArray<NSNumber *> *> *sortedResolutions =
       [[resolutions allObjects] sortedArrayUsingComparator:^NSComparisonResult(
                                     NSArray<NSNumber *> *obj1, NSArray<NSNumber *> *obj2) {
-        NSComparisonResult cmp = [obj1.firstObject compare:obj2.firstObject];
-        if (cmp != NSOrderedSame) {
-          return cmp;
-        }
-        return [obj1.lastObject compare:obj2.lastObject];
+        return obj1.firstObject > obj2.firstObject;
       }];
 
   NSMutableArray<NSString *> *resolutionStrings = [[NSMutableArray<NSString *> alloc] init];
@@ -113,6 +109,14 @@ NS_ASSUME_NONNULL_BEGIN
   [[self settingsStore] setCreateAecDump:createAecDump];
 }
 
+- (BOOL)currentUseLevelControllerSettingFromStore {
+  return [[self settingsStore] useLevelController];
+}
+
+- (void)storeUseLevelControllerSetting:(BOOL)useLevelController {
+  [[self settingsStore] setUseLevelController:useLevelController];
+}
+
 - (BOOL)currentUseManualAudioConfigSettingFromStore {
   return [[self settingsStore] useManualAudioConfig];
 }
@@ -164,12 +168,15 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (void)registerStoreDefaults {
+  NSString *defaultVideoResolutionSetting = [self defaultVideoResolutionSetting];
+
   NSData *codecData = [NSKeyedArchiver archivedDataWithRootObject:[self defaultVideoCodecSetting]];
   [ARDSettingsStore setDefaultsForVideoResolution:[self defaultVideoResolutionSetting]
                                        videoCodec:codecData
                                           bitrate:nil
                                         audioOnly:NO
                                     createAecDump:NO
+                               useLevelController:NO
                              useManualAudioConfig:YES];
 }
 

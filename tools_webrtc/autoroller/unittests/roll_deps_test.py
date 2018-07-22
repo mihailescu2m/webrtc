@@ -19,9 +19,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.join(SCRIPT_DIR, os.pardir)
 sys.path.append(PARENT_DIR)
 import roll_deps
-from roll_deps import CalculateChangedDeps, ChooseCQMode, \
-  GetMatchingDepsEntries, ParseDepsDict, ParseLocalDepsFile, UpdateDepsFile, \
-  ChromiumRevisionUpdate
+from roll_deps import CalculateChangedDeps, GetMatchingDepsEntries, \
+  ParseDepsDict, ParseLocalDepsFile, UpdateDepsFile
 
 
 TEST_DATA_VARS = {
@@ -68,10 +67,10 @@ class FakeCmd(object):
 class TestRollChromiumRevision(unittest.TestCase):
   def setUp(self):
     self._output_dir = tempfile.mkdtemp()
-    test_data_dir = os.path.join(SCRIPT_DIR, 'testdata', 'roll_deps')
-    for test_file in glob.glob(os.path.join(test_data_dir, '*')):
+    for test_file in glob.glob(os.path.join(SCRIPT_DIR, 'testdata', '*')):
       shutil.copy(test_file, self._output_dir)
     self._webrtc_depsfile = os.path.join(self._output_dir, 'DEPS')
+    self._old_cr_depsfile = os.path.join(self._output_dir, 'DEPS.chromium.old')
     self._new_cr_depsfile = os.path.join(self._output_dir, 'DEPS.chromium.new')
 
     self.fake = FakeCmd()
@@ -92,9 +91,7 @@ class TestRollChromiumRevision(unittest.TestCase):
     new_rev = 'aaaaabbbbbcccccdddddeeeeefffff0000011111'
 
     current_rev = TEST_DATA_VARS['chromium_revision']
-    UpdateDepsFile(self._webrtc_depsfile,
-                   ChromiumRevisionUpdate(current_rev, new_rev),
-                   [])
+    UpdateDepsFile(self._webrtc_depsfile, current_rev, new_rev, [])
     with open(self._webrtc_depsfile) as deps_file:
       deps_contents = deps_file.read()
       self.assertTrue(new_rev in deps_contents,
@@ -110,7 +107,7 @@ class TestRollChromiumRevision(unittest.TestCase):
       self.assertEquals(vars_dict[variable_name], TEST_DATA_VARS[variable_name])
     AssertVar('chromium_git')
     AssertVar('chromium_revision')
-    self.assertEquals(len(local_scope['deps']), 3)
+    self.assertEquals(len(local_scope['deps']), 2)
     self.assertEquals(len(local_scope['deps_os']), 1)
 
   def testGetMatchingDepsEntriesReturnsPathInSimpleCase(self):
@@ -133,7 +130,7 @@ class TestRollChromiumRevision(unittest.TestCase):
     webrtc_deps = ParseLocalDepsFile(self._webrtc_depsfile)
     new_cr_deps = ParseLocalDepsFile(self._new_cr_depsfile)
     changed_deps = CalculateChangedDeps(webrtc_deps, new_cr_deps)
-    self.assertEquals(len(changed_deps), 3)
+    self.assertEquals(len(changed_deps), 2)
     self.assertEquals(changed_deps[0].path, 'src/build')
     self.assertEquals(changed_deps[0].current_rev, BUILD_OLD_REV)
     self.assertEquals(changed_deps[0].new_rev, BUILD_NEW_REV)
@@ -141,22 +138,6 @@ class TestRollChromiumRevision(unittest.TestCase):
     self.assertEquals(changed_deps[1].path, 'src/buildtools')
     self.assertEquals(changed_deps[1].current_rev, BUILDTOOLS_OLD_REV)
     self.assertEquals(changed_deps[1].new_rev, BUILDTOOLS_NEW_REV)
-
-    self.assertEquals(changed_deps[2].path, 'src/third_party/xstream')
-    self.assertEquals(changed_deps[2].package, 'chromium/third_party/xstream')
-    self.assertEquals(changed_deps[2].current_version, 'version:1.4.8-cr0')
-    self.assertEquals(changed_deps[2].new_version, 'version:1.10.0-cr0')
-
-
-class TestChooseCQMode(unittest.TestCase):
-  def testSkip(self):
-    self.assertEquals(ChooseCQMode(True, 99, 500000, 500100), 0)
-
-  def testDryRun(self):
-    self.assertEquals(ChooseCQMode(False, 101, 500000, 500100), 1)
-
-  def testSubmit(self):
-    self.assertEquals(ChooseCQMode(False, 100, 500000, 500100), 2)
 
 
 def _SetupGitLsRemoteCall(cmd_fake, url, revision):

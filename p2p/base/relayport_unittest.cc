@@ -8,7 +8,6 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <map>
 #include <memory>
 
 #include "p2p/base/basicpacketsocketfactory.h"
@@ -41,7 +40,8 @@ static const int kMaxTimeoutMs = 5000;
 // RelayPort and created sockets by listening for signals such as,
 // SignalConnectFailure, SignalConnectTimeout, SignalSocketClosed and
 // SignalReadPacket.
-class RelayPortTest : public testing::Test, public sigslot::has_slots<> {
+class RelayPortTest : public testing::Test,
+                      public sigslot::has_slots<> {
  public:
   RelayPortTest()
       : virtual_socket_server_(new rtc::VirtualSocketServer()),
@@ -62,8 +62,7 @@ class RelayPortTest : public testing::Test, public sigslot::has_slots<> {
   }
 
   void OnReadPacket(rtc::AsyncPacketSocket* socket,
-                    const char* data,
-                    size_t size,
+                    const char* data, size_t size,
                     const rtc::SocketAddress& remote_addr,
                     const rtc::PacketTime& packet_time) {
     received_packet_count_[socket]++;
@@ -80,15 +79,17 @@ class RelayPortTest : public testing::Test, public sigslot::has_slots<> {
  protected:
   virtual void SetUp() {
     // The relay server needs an external socket to work properly.
-    rtc::AsyncUDPSocket* ext_socket = CreateAsyncUdpSocket(kRelayExtAddr);
+    rtc::AsyncUDPSocket* ext_socket =
+        CreateAsyncUdpSocket(kRelayExtAddr);
     relay_server_->AddExternalSocket(ext_socket);
 
     // Listen for failures.
-    relay_port_->SignalConnectFailure.connect(this,
-                                              &RelayPortTest::OnConnectFailure);
+    relay_port_->SignalConnectFailure.
+        connect(this, &RelayPortTest::OnConnectFailure);
 
     // Listen for soft timeouts.
-    relay_port_->SignalSoftTimeout.connect(this, &RelayPortTest::OnSoftTimeout);
+    relay_port_->SignalSoftTimeout.
+        connect(this, &RelayPortTest::OnSoftTimeout);
   }
 
   // Udp has the highest 'goodness' value of the three different
@@ -175,7 +176,8 @@ class RelayPortTest : public testing::Test, public sigslot::has_slots<> {
         cricket::ProtocolAddress(kRelayTcpAddr, cricket::PROTO_TCP);
 
     // Create a ssl server socket for the RelayServer.
-    rtc::AsyncSocket* ssl_server_socket = CreateServerSocket(kRelaySslAddr);
+    rtc::AsyncSocket* ssl_server_socket =
+        CreateServerSocket(kRelaySslAddr);
     relay_server_->AddInternalServerSocket(ssl_server_socket,
                                            cricket::PROTO_SSLTCP);
 
@@ -207,7 +209,7 @@ class RelayPortTest : public testing::Test, public sigslot::has_slots<> {
  private:
   rtc::AsyncUDPSocket* CreateAsyncUdpSocket(const SocketAddress addr) {
     rtc::AsyncSocket* socket =
-        virtual_socket_server_->CreateAsyncSocket(AF_INET, SOCK_DGRAM);
+        virtual_socket_server_->CreateAsyncSocket(SOCK_DGRAM);
     rtc::AsyncUDPSocket* packet_socket =
         rtc::AsyncUDPSocket::Create(socket, addr);
     EXPECT_TRUE(packet_socket != NULL);
@@ -217,7 +219,7 @@ class RelayPortTest : public testing::Test, public sigslot::has_slots<> {
 
   rtc::AsyncSocket* CreateServerSocket(const SocketAddress addr) {
     rtc::AsyncSocket* socket =
-        virtual_socket_server_->CreateAsyncSocket(AF_INET, SOCK_STREAM);
+        virtual_socket_server_->CreateAsyncSocket(SOCK_STREAM);
     EXPECT_GE(socket->Bind(addr), 0);
     EXPECT_GE(socket->Listen(5), 0);
     return socket;

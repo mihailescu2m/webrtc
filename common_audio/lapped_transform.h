@@ -16,7 +16,7 @@
 
 #include "common_audio/blocker.h"
 #include "common_audio/real_fourier.h"
-#include "rtc_base/memory/aligned_array.h"
+#include "system_wrappers/include/aligned_array.h"
 
 namespace webrtc {
 
@@ -35,8 +35,7 @@ class LappedTransform {
     virtual ~Callback() {}
 
     virtual void ProcessAudioBlock(const std::complex<float>* const* in_block,
-                                   size_t num_in_channels,
-                                   size_t frames,
+                                   size_t num_in_channels, size_t frames,
                                    size_t num_out_channels,
                                    std::complex<float>* const* out_block) = 0;
   };
@@ -129,3 +128,4 @@ class LappedTransform {
 }  // namespace webrtc
 
 #endif  // COMMON_AUDIO_LAPPED_TRANSFORM_H_
+

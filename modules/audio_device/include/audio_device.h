@@ -12,8 +12,8 @@
 #define MODULES_AUDIO_DEVICE_INCLUDE_AUDIO_DEVICE_H_
 
 #include "modules/audio_device/include/audio_device_defines.h"
-#include "rtc_base/refcount.h"
 #include "rtc_base/scoped_ref_ptr.h"
+#include "rtc_base/refcount.h"
 
 namespace webrtc {
 
@@ -21,20 +21,20 @@ class AudioDeviceModule : public rtc::RefCountInterface {
  public:
   // Deprecated.
   // TODO(henrika): to be removed.
-  enum ErrorCode { kAdmErrNone = 0, kAdmErrArgument = 1 };
+  enum ErrorCode {
+    kAdmErrNone = 0,
+    kAdmErrArgument = 1
+  };
 
   enum AudioLayer {
     kPlatformDefaultAudio = 0,
-    kWindowsCoreAudio,
-    kWindowsCoreAudio2,  // experimental
-    kLinuxAlsaAudio,
-    kLinuxPulseAudio,
-    kAndroidJavaAudio,
-    kAndroidOpenSLESAudio,
-    kAndroidJavaInputAndOpenSLESOutputAudio,
-    kAndroidAAudioAudio,
-    kAndroidJavaInputAndAAudioOutputAudio,
-    kDummyAudio,
+    kWindowsCoreAudio = 2,
+    kLinuxAlsaAudio = 3,
+    kLinuxPulseAudio = 4,
+    kAndroidJavaAudio = 5,
+    kAndroidOpenSLESAudio = 6,
+    kAndroidJavaInputAndOpenSLESOutputAudio = 7,
+    kDummyAudio = 8
   };
 
   enum WindowsDeviceType {
@@ -43,7 +43,11 @@ class AudioDeviceModule : public rtc::RefCountInterface {
   };
 
   // TODO(bugs.webrtc.org/7306): deprecated.
-  enum ChannelType { kChannelLeft = 0, kChannelRight = 1, kChannelBoth = 2 };
+  enum ChannelType {
+    kChannelLeft = 0,
+    kChannelRight = 1,
+    kChannelBoth = 2
+  };
 
  public:
   // Creates an ADM.
@@ -97,6 +101,10 @@ class AudioDeviceModule : public rtc::RefCountInterface {
   virtual int32_t StopRecording() = 0;
   virtual bool Recording() const = 0;
 
+  // Microphone Automatic Gain Control (AGC)
+  virtual int32_t SetAGC(bool enable) = 0;
+  virtual bool AGC() const = 0;
+
   // Audio mixer initialization
   virtual int32_t InitSpeaker() = 0;
   virtual bool SpeakerIsInitialized() const = 0;
@@ -134,9 +142,30 @@ class AudioDeviceModule : public rtc::RefCountInterface {
   virtual int32_t StereoRecordingIsAvailable(bool* available) const = 0;
   virtual int32_t SetStereoRecording(bool enable) = 0;
   virtual int32_t StereoRecording(bool* enabled) const = 0;
+  // TODO(bugs.webrtc.org/7306): deprecated.
+  virtual int32_t SetRecordingChannel(const ChannelType channel) { return -1; }
+  virtual int32_t RecordingChannel(ChannelType* channel) const { return -1; }
 
   // Playout delay
   virtual int32_t PlayoutDelay(uint16_t* delayMS) const = 0;
+
+  // TODO(bugs.webrtc.org/7306): deprecated (to be removed).
+  virtual int32_t SetRecordingSampleRate(const uint32_t samplesPerSec) {
+    return -1;
+  }
+  virtual int32_t RecordingSampleRate(uint32_t* samplesPerSec) const {
+    return -1;
+  }
+  virtual int32_t SetPlayoutSampleRate(const uint32_t samplesPerSec) {
+    return -1;
+  }
+  virtual int32_t PlayoutSampleRate(uint32_t* samplesPerSec) const {
+    return -1;
+  }
+
+  // TODO(bugs.webrtc.org/7306): deprecated (to be removed).
+  virtual int32_t SetLoudspeakerStatus(bool enable) { return -1; }
+  virtual int32_t GetLoudspeakerStatus(bool* enabled) const { return -1; }
 
   // Only supported on Android.
   virtual bool BuiltInAECIsAvailable() const = 0;

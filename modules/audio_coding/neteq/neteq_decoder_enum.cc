@@ -15,7 +15,7 @@
 
 namespace webrtc {
 
-absl::optional<SdpAudioFormat> NetEqDecoderToSdpAudioFormat(NetEqDecoder nd) {
+rtc::Optional<SdpAudioFormat> NetEqDecoderToSdpAudioFormat(NetEqDecoder nd) {
   switch (nd) {
     case NetEqDecoder::kDecoderPCMu:
       return SdpAudioFormat("pcmu", 8000, 1);
@@ -78,7 +78,7 @@ absl::optional<SdpAudioFormat> NetEqDecoderToSdpAudioFormat(NetEqDecoder nd) {
     case NetEqDecoder::kDecoderCNGswb48kHz:
       return SdpAudioFormat("cn", 48000, 1);
     default:
-      return absl::nullopt;
+      return rtc::nullopt;
   }
 }
 

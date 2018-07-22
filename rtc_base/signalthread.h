@@ -38,9 +38,11 @@ namespace rtc {
 //   tasks in the context of the main thread.
 ///////////////////////////////////////////////////////////////////////////////
 
-class SignalThread : public sigslot::has_slots<>, protected MessageHandler {
+class SignalThread
+    : public sigslot::has_slots<>,
+      protected MessageHandler {
  public:
-  SignalThread();
+  explicit SignalThread(bool use_socket_server = true);
 
   // Context: Main Thread.  Call before Start to change the worker's name.
   bool SetName(const std::string& name, const void* obj);
@@ -61,7 +63,7 @@ class SignalThread : public sigslot::has_slots<>, protected MessageHandler {
   void Release();
 
   // Context: Main Thread.  Signalled when work is complete.
-  sigslot::signal1<SignalThread*> SignalWorkDone;
+  sigslot::signal1<SignalThread *> SignalWorkDone;
 
   enum { ST_MSG_WORKER_DONE, ST_MSG_FIRST_AVAILABLE };
 
@@ -71,7 +73,7 @@ class SignalThread : public sigslot::has_slots<>, protected MessageHandler {
   Thread* worker() { return &worker_; }
 
   // Context: Main Thread.  Subclass should override to do pre-work setup.
-  virtual void OnWorkStart() {}
+  virtual void OnWorkStart() { }
 
   // Context: Worker Thread.  Subclass should override to do work.
   virtual void DoWork() = 0;
@@ -82,10 +84,10 @@ class SignalThread : public sigslot::has_slots<>, protected MessageHandler {
 
   // Context: Worker Thread.  Subclass should override when extra work is
   // needed to abort the worker thread.
-  virtual void OnWorkStop() {}
+  virtual void OnWorkStop() { }
 
   // Context: Main Thread.  Subclass should override to do post-work cleanup.
-  virtual void OnWorkDone() {}
+  virtual void OnWorkDone() { }
 
   // Context: Any Thread.  If subclass overrides, be sure to call the base
   // implementation.  Do not use (message_id < ST_MSG_FIRST_AVAILABLE)
@@ -93,16 +95,20 @@ class SignalThread : public sigslot::has_slots<>, protected MessageHandler {
 
  private:
   enum State {
-    kInit,       // Initialized, but not started
-    kRunning,    // Started and doing work
-    kReleasing,  // Same as running, but to be deleted when work is done
-    kComplete,   // Work is done
-    kStopping,   // Work is being interrupted
+    kInit,            // Initialized, but not started
+    kRunning,         // Started and doing work
+    kReleasing,       // Same as running, but to be deleted when work is done
+    kComplete,        // Work is done
+    kStopping,        // Work is being interrupted
   };
 
   class Worker : public Thread {
    public:
-    explicit Worker(SignalThread* parent);
+    explicit Worker(SignalThread* parent, bool use_socket_server)
+        : Thread(use_socket_server
+                     ? SocketServer::CreateDefault()
+                     : std::unique_ptr<SocketServer>(new NullSocketServer())),
+          parent_(parent) {}
     ~Worker() override;
     void Run() override;
     bool IsProcessingMessages() override;

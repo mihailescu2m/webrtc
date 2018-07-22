@@ -27,10 +27,9 @@ void MatchedFilterLagAggregator::Reset() {
   std::fill(histogram_.begin(), histogram_.end(), 0);
   histogram_data_.fill(0);
   histogram_data_index_ = 0;
-  significant_candidate_found_ = false;
 }
 
-absl::optional<DelayEstimate> MatchedFilterLagAggregator::Aggregate(
+rtc::Optional<size_t> MatchedFilterLagAggregator::Aggregate(
     rtc::ArrayView<const MatchedFilter::LagEstimate> lag_estimates) {
   // Choose the strongest lag estimate as the best one.
   float best_accuracy = 0.f;
@@ -68,11 +67,10 @@ absl::optional<DelayEstimate> MatchedFilterLagAggregator::Aggregate(
                       std::max_element(histogram_.begin(), histogram_.end()));
 
     if (histogram_[candidate] > 25) {
-      significant_candidate_found_ = true;
-      return DelayEstimate(DelayEstimate::Quality::kRefined, candidate);
+      return candidate;
     }
   }
-  return absl::nullopt;
+  return rtc::nullopt;
 }
 
 }  // namespace webrtc

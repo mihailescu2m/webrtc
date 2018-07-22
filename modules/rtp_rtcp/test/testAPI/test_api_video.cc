@@ -14,7 +14,7 @@
 #include <memory>
 #include <vector>
 
-#include "api/video_codecs/video_codec.h"
+#include "common_types.h"  // NOLINT(build/include)
 #include "modules/rtp_rtcp/include/rtp_payload_registry.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
@@ -27,6 +27,7 @@
 namespace {
 
 const unsigned char kPayloadType = 100;
+
 };
 
 namespace webrtc {
@@ -39,9 +40,9 @@ class RtpRtcpVideoTest : public ::testing::Test {
         test_sequence_number_(2345),
         fake_clock(123456),
         retransmission_rate_limiter_(&fake_clock, 1000) {}
-  ~RtpRtcpVideoTest() override = default;
+  ~RtpRtcpVideoTest() {}
 
-  void SetUp() override {
+  virtual void SetUp() {
     transport_ = new LoopBackTransport();
     receiver_ = new TestRtpReceiver();
     receive_statistics_.reset(ReceiveStatistics::Create(&fake_clock));
@@ -53,7 +54,7 @@ class RtpRtcpVideoTest : public ::testing::Test {
 
     video_module_ = RtpRtcp::CreateRtpRtcp(configuration);
     rtp_receiver_.reset(RtpReceiver::CreateVideoReceiver(
-        &fake_clock, receiver_, &rtp_payload_registry_));
+        &fake_clock, receiver_, NULL, &rtp_payload_registry_));
 
     video_module_->SetRTCPStatus(RtcpMode::kCompound);
     video_module_->SetSSRC(test_ssrc_);
@@ -66,21 +67,21 @@ class RtpRtcpVideoTest : public ::testing::Test {
     VideoCodec video_codec;
     memset(&video_codec, 0, sizeof(video_codec));
     video_codec.plType = 123;
-    video_codec.codecType = kVideoCodecI420;
+    memcpy(video_codec.plName, "I420", 5);
 
-    video_module_->RegisterVideoSendPayload(123, "I420");
+    EXPECT_EQ(0, video_module_->RegisterSendPayload(video_codec));
     EXPECT_EQ(0, rtp_payload_registry_.RegisterReceivePayload(video_codec));
 
     payload_data_length_ = sizeof(video_frame_);
 
     for (size_t n = 0; n < payload_data_length_; n++) {
-      video_frame_[n] = n % 10;
+      video_frame_[n] = n%10;
     }
   }
 
   size_t BuildRTPheader(uint8_t* dataBuffer,
-                        uint32_t timestamp,
-                        uint32_t sequence_number) {
+                         uint32_t timestamp,
+                         uint32_t sequence_number) {
     dataBuffer[0] = static_cast<uint8_t>(0x80);  // version 2
     dataBuffer[1] = static_cast<uint8_t>(kPayloadType);
     ByteWriter<uint16_t>::WriteBigEndian(dataBuffer + 2, sequence_number);
@@ -104,7 +105,8 @@ class RtpRtcpVideoTest : public ::testing::Test {
     // Correct seq num, timestamp and payload type.
     size_t header_length = BuildRTPheader(buffer, timestamp, sequence_number);
     buffer[0] |= 0x20;  // Set padding bit.
-    int32_t* data = reinterpret_cast<int32_t*>(&(buffer[header_length]));
+    int32_t* data =
+        reinterpret_cast<int32_t*>(&(buffer[header_length]));
 
     // Fill data buffer with random data.
     for (size_t j = 0; j < (padding_bytes_in_packet >> 2); j++) {
@@ -116,7 +118,7 @@ class RtpRtcpVideoTest : public ::testing::Test {
     return padding_bytes_in_packet + header_length;
   }
 
-  void TearDown() override {
+  virtual void TearDown() {
     delete video_module_;
     delete transport_;
     delete receiver_;
@@ -132,7 +134,7 @@ class RtpRtcpVideoTest : public ::testing::Test {
   uint32_t test_ssrc_;
   uint32_t test_timestamp_;
   uint16_t test_sequence_number_;
-  uint8_t video_frame_[65000];
+  uint8_t  video_frame_[65000];
   size_t payload_data_length_;
   SimulatedClock fake_clock;
   RateLimiter retransmission_rate_limiter_;
@@ -153,11 +155,12 @@ TEST_F(RtpRtcpVideoTest, PaddingOnlyFrames) {
   VideoCodec codec;
   codec.codecType = kVideoCodecVP8;
   codec.plType = kPayloadType;
+  strncpy(codec.plName, "VP8", 4);
   EXPECT_EQ(0, rtp_payload_registry_.RegisterReceivePayload(codec));
   for (int frame_idx = 0; frame_idx < 10; ++frame_idx) {
     for (int packet_idx = 0; packet_idx < 5; ++packet_idx) {
-      size_t packet_size =
-          PaddingPacket(padding_packet, timestamp, seq_num, kPadSize);
+      size_t packet_size = PaddingPacket(padding_packet, timestamp, seq_num,
+                                         kPadSize);
       ++seq_num;
       RTPHeader header;
       std::unique_ptr<RtpHeaderParser> parser(RtpHeaderParser::Create());

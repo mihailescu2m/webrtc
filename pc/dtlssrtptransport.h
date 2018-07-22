@@ -16,17 +16,19 @@
 #include <vector>
 
 #include "p2p/base/dtlstransportinternal.h"
+#include "pc/rtptransportinternaladapter.h"
 #include "pc/srtptransport.h"
-#include "rtc_base/buffer.h"
 
 namespace webrtc {
 
-// The subclass of SrtpTransport is used for DTLS-SRTP. When the DTLS handshake
-// is finished, it extracts the keying materials from DtlsTransport and
-// configures the SrtpSessions in the base class.
-class DtlsSrtpTransport : public SrtpTransport {
+// This class is intended to be used as an RtpTransport and it wraps both an
+// SrtpTransport and DtlsTransports(RTP/RTCP). When the DTLS handshake is
+// finished, it extracts the keying materials from DtlsTransport and sets them
+// to SrtpTransport.
+class DtlsSrtpTransport : public RtpTransportInternalAdapter {
  public:
-  explicit DtlsSrtpTransport(bool rtcp_mux_enabled);
+  explicit DtlsSrtpTransport(
+      std::unique_ptr<webrtc::SrtpTransport> srtp_transport);
 
   // Set P2P layer RTP/RTCP DtlsTransports. When using RTCP-muxing,
   // |rtcp_dtls_transport| is null.
@@ -36,28 +38,18 @@ class DtlsSrtpTransport : public SrtpTransport {
   void SetRtcpMuxEnabled(bool enable) override;
 
   // Set the header extension ids that should be encrypted.
-  void UpdateSendEncryptedHeaderExtensionIds(
+  void SetSendEncryptedHeaderExtensionIds(
       const std::vector<int>& send_extension_ids);
 
-  void UpdateRecvEncryptedHeaderExtensionIds(
+  void SetRecvEncryptedHeaderExtensionIds(
       const std::vector<int>& recv_extension_ids);
 
+  bool IsActive() { return srtp_transport_->IsActive(); }
+
+  // TODO(zhihuang): Remove this when we remove RtpTransportAdapter.
+  RtpTransportAdapter* GetInternal() override { return nullptr; }
+
   sigslot::signal2<DtlsSrtpTransport*, bool> SignalDtlsSrtpSetupFailure;
-
-  RTCError SetSrtpSendKey(const cricket::CryptoParams& params) override {
-    return RTCError(RTCErrorType::UNSUPPORTED_OPERATION,
-                    "Set SRTP keys for DTLS-SRTP is not supported.");
-  }
-  RTCError SetSrtpReceiveKey(const cricket::CryptoParams& params) override {
-    return RTCError(RTCErrorType::UNSUPPORTED_OPERATION,
-                    "Set SRTP keys for DTLS-SRTP is not supported.");
-  }
-
-  // If |active_reset_srtp_params_| is set to be true, the SRTP parameters will
-  // be reset whenever the DtlsTransports are reset.
-  void SetActiveResetSrtpParams(bool active_reset_srtp_params) {
-    active_reset_srtp_params_ = active_reset_srtp_params;
-  }
 
  private:
   bool IsDtlsActive();
@@ -69,29 +61,35 @@ class DtlsSrtpTransport : public SrtpTransport {
   void SetupRtcpDtlsSrtp();
   bool ExtractParams(cricket::DtlsTransportInternal* dtls_transport,
                      int* selected_crypto_suite,
-                     rtc::ZeroOnFreeBuffer<unsigned char>* send_key,
-                     rtc::ZeroOnFreeBuffer<unsigned char>* recv_key);
+                     std::vector<unsigned char>* send_key,
+                     std::vector<unsigned char>* recv_key);
   void SetDtlsTransport(cricket::DtlsTransportInternal* new_dtls_transport,
                         cricket::DtlsTransportInternal** old_dtls_transport);
   void SetRtpDtlsTransport(cricket::DtlsTransportInternal* rtp_dtls_transport);
   void SetRtcpDtlsTransport(
       cricket::DtlsTransportInternal* rtcp_dtls_transport);
+  void UpdateWritableStateAndMaybeSetupDtlsSrtp();
+  // Set the writability and fire the SignalWritableState if the writability
+  // changes.
+  void SetWritable(bool writable);
 
   void OnDtlsState(cricket::DtlsTransportInternal* dtls_transport,
                    cricket::DtlsTransportState state);
+  void OnWritableState(rtc::PacketTransportInternal* transport);
+  void OnPacketReceived(bool rtcp,
+                        rtc::CopyOnWriteBuffer* packet,
+                        const rtc::PacketTime& packet_time);
+  void OnReadyToSend(bool ready);
 
-  // Override the SrtpTransport::OnWritableState.
-  void OnWritableState(rtc::PacketTransportInternal* packet_transport) override;
-
+  bool writable_ = false;
+  std::unique_ptr<SrtpTransport> srtp_transport_;
   // Owned by the TransportController.
   cricket::DtlsTransportInternal* rtp_dtls_transport_ = nullptr;
   cricket::DtlsTransportInternal* rtcp_dtls_transport_ = nullptr;
 
   // The encrypted header extension IDs.
-  absl::optional<std::vector<int>> send_extension_ids_;
-  absl::optional<std::vector<int>> recv_extension_ids_;
-
-  bool active_reset_srtp_params_ = false;
+  rtc::Optional<std::vector<int>> send_extension_ids_;
+  rtc::Optional<std::vector<int>> recv_extension_ids_;
 };
 
 }  // namespace webrtc

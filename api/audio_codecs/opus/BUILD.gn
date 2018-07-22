@@ -13,14 +13,13 @@ if (is_android) {
 }
 
 rtc_static_library("audio_encoder_opus_config") {
-  visibility = [ "*" ]
   sources = [
     "audio_encoder_opus_config.cc",
     "audio_encoder_opus_config.h",
   ]
   deps = [
+    "../..:optional",
     "../../../rtc_base:rtc_base_approved",
-    "//third_party/abseil-cpp/absl/types:optional",
   ]
   defines = []
   if (rtc_opus_variable_complexity) {
@@ -31,8 +30,6 @@ rtc_static_library("audio_encoder_opus_config") {
 }
 
 rtc_source_set("audio_encoder_opus") {
-  visibility = [ "*" ]
-  poisonous = [ "audio_codecs" ]
   public = [
     "audio_encoder_opus.h",
   ]
@@ -42,25 +39,26 @@ rtc_source_set("audio_encoder_opus") {
   deps = [
     ":audio_encoder_opus_config",
     "..:audio_codecs_api",
+    "../..:optional",
     "../../../modules/audio_coding:webrtc_opus",
     "../../../rtc_base:rtc_base_approved",
-    "//third_party/abseil-cpp/absl/types:optional",
+  ]
+  public_deps = [
+    # TODO(kwiberg): Remove this public_dep when bug 7847 has been fixed.
+    "../../../rtc_base:protobuf_utils",
   ]
 }
 
 rtc_static_library("audio_decoder_opus") {
-  visibility = [ "*" ]
-  poisonous = [ "audio_codecs" ]
   sources = [
     "audio_decoder_opus.cc",
     "audio_decoder_opus.h",
   ]
   deps = [
     "..:audio_codecs_api",
+    "../..:optional",
     "../../..:webrtc_common",
     "../../../modules/audio_coding:webrtc_opus",
     "../../../rtc_base:rtc_base_approved",
-    "//third_party/abseil-cpp/absl/memory",
-    "//third_party/abseil-cpp/absl/types:optional",
   ]
 }

@@ -32,7 +32,7 @@ const int STUN_TOTAL_TIMEOUT = 39750;  // milliseconds
 // response or determine that the request has timed out.
 class StunRequestManager {
  public:
-  explicit StunRequestManager(rtc::Thread* thread);
+  StunRequestManager(rtc::Thread* thread);
   ~StunRequestManager();
 
   // Starts sending the given request (perhaps after a delay).
@@ -83,7 +83,7 @@ class StunRequestManager {
 class StunRequest : public rtc::MessageHandler {
  public:
   StunRequest();
-  explicit StunRequest(StunMessage* request);
+  StunRequest(StunMessage* request);
   ~StunRequest() override;
 
   // Causes our wrapped StunMessage to be Prepared

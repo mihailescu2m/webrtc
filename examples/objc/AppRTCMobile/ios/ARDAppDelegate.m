@@ -25,7 +25,9 @@
 
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-  NSDictionary *fieldTrials = @{};
+  NSDictionary *fieldTrials = @{
+    kRTCFieldTrialH264HighProfileKey: kRTCFieldTrialEnabledValue,
+  };
   RTCInitFieldTrialDictionary(fieldTrials);
   RTCInitializeSSL();
   RTCSetupInternalTracer();

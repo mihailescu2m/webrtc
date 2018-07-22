@@ -113,41 +113,33 @@ public class DataChannel {
   /** Register |observer|, replacing any previously-registered observer. */
   public void registerObserver(Observer observer) {
     if (nativeObserver != 0) {
-      nativeUnregisterObserver(nativeObserver);
+      unregisterObserverNative(nativeObserver);
     }
-    nativeObserver = nativeRegisterObserver(observer);
+    nativeObserver = registerObserverNative(observer);
   }
+  private native long registerObserverNative(Observer observer);
 
   /** Unregister the (only) observer. */
   public void unregisterObserver() {
-    nativeUnregisterObserver(nativeObserver);
+    unregisterObserverNative(nativeObserver);
   }
+  private native void unregisterObserverNative(long nativeObserver);
 
-  public String label() {
-    return nativeLabel();
-  }
+  public native String label();
 
-  public int id() {
-    return nativeId();
-  }
+  public native int id();
 
-  public State state() {
-    return nativeState();
-  }
+  public native State state();
 
   /**
    * Return the number of bytes of application data (UTF-8 text and binary data)
    * that have been queued using SendBuffer but have not yet been transmitted
    * to the network.
    */
-  public long bufferedAmount() {
-    return nativeBufferedAmount();
-  }
+  public native long bufferedAmount();
 
   /** Close the channel. */
-  public void close() {
-    nativeClose();
-  }
+  public native void close();
 
   /** Send |data| to the remote peer; return success. */
   public boolean send(Buffer buffer) {
@@ -155,8 +147,9 @@ public class DataChannel {
     // ByteBuffer is direct and/or is backed by an array.
     byte[] data = new byte[buffer.data.remaining()];
     buffer.data.get(data);
-    return nativeSend(data, buffer.binary);
+    return sendNative(data, buffer.binary);
   }
+  private native boolean sendNative(byte[] data, boolean binary);
 
   /** Dispose of native resources attached to this channel. */
   public void dispose() {
@@ -167,13 +160,4 @@ public class DataChannel {
   long getNativeDataChannel() {
     return nativeDataChannel;
   }
-
-  private native long nativeRegisterObserver(Observer observer);
-  private native void nativeUnregisterObserver(long observer);
-  private native String nativeLabel();
-  private native int nativeId();
-  private native State nativeState();
-  private native long nativeBufferedAmount();
-  private native void nativeClose();
-  private native boolean nativeSend(byte[] data, boolean binary);
 };

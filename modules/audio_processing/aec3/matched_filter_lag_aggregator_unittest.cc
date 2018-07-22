@@ -6,7 +6,7 @@
  *  tree. An additional intellectual property rights grant can be found
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
- */
+  */
 
 #include "modules/audio_processing/aec3/matched_filter_lag_aggregator.h"
 
@@ -22,7 +22,7 @@
 namespace webrtc {
 namespace {
 
-constexpr size_t kNumLagsBeforeDetection = 26;
+constexpr size_t kNumLagsBeforeDetection = 25;
 
 }  // namespace
 
@@ -37,13 +37,12 @@ TEST(MatchedFilterLagAggregator, MostAccurateLagChosen) {
   lag_estimates[1] = MatchedFilter::LagEstimate(0.5f, true, kLag2, true);
 
   for (size_t k = 0; k < kNumLagsBeforeDetection; ++k) {
-    aggregator.Aggregate(lag_estimates);
+    EXPECT_FALSE(aggregator.Aggregate(lag_estimates));
   }
 
-  absl::optional<DelayEstimate> aggregated_lag =
-      aggregator.Aggregate(lag_estimates);
+  rtc::Optional<size_t> aggregated_lag = aggregator.Aggregate(lag_estimates);
   EXPECT_TRUE(aggregated_lag);
-  EXPECT_EQ(kLag1, aggregated_lag->delay);
+  EXPECT_EQ(kLag1, *aggregated_lag);
 
   lag_estimates[0] = MatchedFilter::LagEstimate(0.5f, true, kLag1, true);
   lag_estimates[1] = MatchedFilter::LagEstimate(1.f, true, kLag2, true);
@@ -51,13 +50,13 @@ TEST(MatchedFilterLagAggregator, MostAccurateLagChosen) {
   for (size_t k = 0; k < kNumLagsBeforeDetection; ++k) {
     aggregated_lag = aggregator.Aggregate(lag_estimates);
     EXPECT_TRUE(aggregated_lag);
-    EXPECT_EQ(kLag1, aggregated_lag->delay);
+    EXPECT_EQ(kLag1, *aggregated_lag);
   }
 
   aggregated_lag = aggregator.Aggregate(lag_estimates);
   aggregated_lag = aggregator.Aggregate(lag_estimates);
   EXPECT_TRUE(aggregated_lag);
-  EXPECT_EQ(kLag2, aggregated_lag->delay);
+  EXPECT_EQ(kLag2, *aggregated_lag);
 }
 
 // Verifies that varying lag estimates causes lag estimates to not be deemed
@@ -67,23 +66,9 @@ TEST(MatchedFilterLagAggregator,
   ApmDataDumper data_dumper(0);
   std::vector<MatchedFilter::LagEstimate> lag_estimates(1);
   MatchedFilterLagAggregator aggregator(&data_dumper, 100);
-
-  absl::optional<DelayEstimate> aggregated_lag;
-  for (size_t k = 0; k < kNumLagsBeforeDetection; ++k) {
-    lag_estimates[0] = MatchedFilter::LagEstimate(1.f, true, 10, true);
-    aggregated_lag = aggregator.Aggregate(lag_estimates);
-  }
-  EXPECT_TRUE(aggregated_lag);
-
   for (size_t k = 0; k < kNumLagsBeforeDetection * 100; ++k) {
     lag_estimates[0] = MatchedFilter::LagEstimate(1.f, true, k % 100, true);
-    aggregated_lag = aggregator.Aggregate(lag_estimates);
-  }
-  EXPECT_FALSE(aggregated_lag);
-
-  for (size_t k = 0; k < kNumLagsBeforeDetection * 100; ++k) {
-    lag_estimates[0] = MatchedFilter::LagEstimate(1.f, true, k % 100, true);
-    aggregated_lag = aggregator.Aggregate(lag_estimates);
+    rtc::Optional<size_t> aggregated_lag = aggregator.Aggregate(lag_estimates);
     EXPECT_FALSE(aggregated_lag);
   }
 }
@@ -98,10 +83,9 @@ TEST(MatchedFilterLagAggregator,
   MatchedFilterLagAggregator aggregator(&data_dumper, kLag);
   for (size_t k = 0; k < kNumLagsBeforeDetection * 10; ++k) {
     lag_estimates[0] = MatchedFilter::LagEstimate(1.f, true, kLag, false);
-    absl::optional<DelayEstimate> aggregated_lag =
-        aggregator.Aggregate(lag_estimates);
+    rtc::Optional<size_t> aggregated_lag = aggregator.Aggregate(lag_estimates);
     EXPECT_FALSE(aggregated_lag);
-    EXPECT_EQ(kLag, aggregated_lag->delay);
+    EXPECT_EQ(kLag, *aggregated_lag);
   }
 }
 
@@ -114,19 +98,19 @@ TEST(MatchedFilterLagAggregator, DISABLED_PersistentAggregatedLag) {
   ApmDataDumper data_dumper(0);
   std::vector<MatchedFilter::LagEstimate> lag_estimates(1);
   MatchedFilterLagAggregator aggregator(&data_dumper, std::max(kLag1, kLag2));
-  absl::optional<DelayEstimate> aggregated_lag;
+  rtc::Optional<size_t> aggregated_lag;
   for (size_t k = 0; k < kNumLagsBeforeDetection; ++k) {
     lag_estimates[0] = MatchedFilter::LagEstimate(1.f, true, kLag1, true);
     aggregated_lag = aggregator.Aggregate(lag_estimates);
   }
   EXPECT_TRUE(aggregated_lag);
-  EXPECT_EQ(kLag1, aggregated_lag->delay);
+  EXPECT_EQ(kLag1, *aggregated_lag);
 
   for (size_t k = 0; k < kNumLagsBeforeDetection * 40; ++k) {
     lag_estimates[0] = MatchedFilter::LagEstimate(1.f, false, kLag2, true);
     aggregated_lag = aggregator.Aggregate(lag_estimates);
     EXPECT_TRUE(aggregated_lag);
-    EXPECT_EQ(kLag1, aggregated_lag->delay);
+    EXPECT_EQ(kLag1, *aggregated_lag);
   }
 }
 

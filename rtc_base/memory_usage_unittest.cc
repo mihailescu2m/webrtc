@@ -20,3 +20,4 @@ TEST(GetMemoryUsage, SimpleTest) {
 }
 
 }  // namespace rtc
+

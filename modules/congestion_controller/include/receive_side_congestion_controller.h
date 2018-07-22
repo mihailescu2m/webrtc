@@ -30,8 +30,9 @@ class RemoteBitrateObserver;
 class ReceiveSideCongestionController : public CallStatsObserver,
                                         public Module {
  public:
-  ReceiveSideCongestionController(const Clock* clock,
-                                  PacketRouter* packet_router);
+  ReceiveSideCongestionController(
+      const Clock* clock,
+      PacketRouter* packet_router);
 
   virtual ~ReceiveSideCongestionController() {}
 

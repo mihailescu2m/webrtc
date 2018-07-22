@@ -26,8 +26,9 @@ bool field_trials_initiated_ = false;
 }  // namespace
 
 namespace test {
-
-void ValidateFieldTrialsStringOrDie(const std::string& trials_string) {
+// Note: this code is copied from src/base/metrics/field_trial.cc since the aim
+// is to mimic chromium --force-fieldtrials.
+void InitFieldTrialsFromString(const std::string& trials_string) {
   static const char kPersistentStringSeparator = '/';
 
   // Catch an error if this is called more than once.
@@ -43,8 +44,8 @@ void ValidateFieldTrialsStringOrDie(const std::string& trials_string) {
     size_t name_end = trials_string.find(kPersistentStringSeparator, next_item);
     if (name_end == trials_string.npos || next_item == name_end)
       break;
-    size_t group_name_end =
-        trials_string.find(kPersistentStringSeparator, name_end + 1);
+    size_t group_name_end = trials_string.find(kPersistentStringSeparator,
+                                               name_end + 1);
     if (group_name_end == trials_string.npos || name_end + 1 == group_name_end)
       break;
     std::string name(trials_string, next_item, name_end - next_item);
@@ -62,7 +63,7 @@ void ValidateFieldTrialsStringOrDie(const std::string& trials_string) {
 
     // Successfully parsed all field trials from the string.
     if (next_item == trials_string.length()) {
-      // webrtc::field_trial::InitFieldTrialsFromString(trials_string.c_str());
+      webrtc::field_trial::InitFieldTrialsFromString(trials_string.c_str());
       return;
     }
   }
@@ -74,12 +75,11 @@ void ValidateFieldTrialsStringOrDie(const std::string& trials_string) {
 }
 
 ScopedFieldTrials::ScopedFieldTrials(const std::string& config)
-    : previous_field_trials_(webrtc::field_trial::GetFieldTrialString()) {
+  : previous_field_trials_(webrtc::field_trial::GetFieldTrialString()) {
   assert(field_trials_initiated_);
   field_trials_initiated_ = false;
   current_field_trials_ = config;
-  ValidateFieldTrialsStringOrDie(current_field_trials_);
-  webrtc::field_trial::InitFieldTrialsFromString(current_field_trials_.c_str());
+  InitFieldTrialsFromString(current_field_trials_);
 }
 
 ScopedFieldTrials::~ScopedFieldTrials() {

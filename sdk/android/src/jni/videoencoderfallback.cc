@@ -10,28 +10,27 @@
 
 #include <jni.h>
 
-#include "api/video_codecs/video_encoder_software_fallback_wrapper.h"
-#include "sdk/android/generated_video_jni/jni/VideoEncoderFallback_jni.h"
+#include "media/engine/videoencodersoftwarefallbackwrapper.h"
 #include "sdk/android/src/jni/jni_helpers.h"
-#include "sdk/android/src/jni/videoencoderwrapper.h"
+#include "sdk/android/src/jni/wrappednativecodec.h"
 
 namespace webrtc {
 namespace jni {
 
-static jlong JNI_VideoEncoderFallback_CreateEncoder(
-    JNIEnv* jni,
-    const JavaParamRef<jclass>&,
-    const JavaParamRef<jobject>& j_fallback_encoder,
-    const JavaParamRef<jobject>& j_primary_encoder) {
+JNI_FUNCTION_DECLARATION(jlong,
+                         VideoEncoderFallback_createNativeEncoder,
+                         JNIEnv* jni,
+                         jclass,
+                         jobject j_fallback_encoder,
+                         jobject j_primary_encoder) {
   std::unique_ptr<VideoEncoder> fallback_encoder =
       JavaToNativeVideoEncoder(jni, j_fallback_encoder);
   std::unique_ptr<VideoEncoder> primary_encoder =
       JavaToNativeVideoEncoder(jni, j_primary_encoder);
 
-  VideoEncoder* nativeWrapper =
-      CreateVideoEncoderSoftwareFallbackWrapper(std::move(fallback_encoder),
-                                                std::move(primary_encoder))
-          .release();
+  VideoEncoderSoftwareFallbackWrapper* nativeWrapper =
+      new VideoEncoderSoftwareFallbackWrapper(std::move(fallback_encoder),
+                                              std::move(primary_encoder));
 
   return jlongFromPointer(nativeWrapper);
 }

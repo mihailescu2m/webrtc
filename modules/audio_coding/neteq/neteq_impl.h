@@ -14,17 +14,16 @@
 #include <memory>
 #include <string>
 
-#include "absl/types/optional.h"
-#include "api/audio/audio_frame.h"
+#include "api/optional.h"
 #include "modules/audio_coding/neteq/audio_multi_vector.h"
 #include "modules/audio_coding/neteq/defines.h"
-#include "modules/audio_coding/neteq/expand_uma_logger.h"
 #include "modules/audio_coding/neteq/include/neteq.h"
 #include "modules/audio_coding/neteq/packet.h"  // Declare PacketList.
 #include "modules/audio_coding/neteq/random_vector.h"
 #include "modules/audio_coding/neteq/rtcp.h"
 #include "modules/audio_coding/neteq/statistics_calculator.h"
 #include "modules/audio_coding/neteq/tick_timer.h"
+#include "modules/include/module_common_types.h"
 #include "rtc_base/constructormagic.h"
 #include "rtc_base/criticalsection.h"
 #include "rtc_base/thread_annotations.h"
@@ -168,6 +167,16 @@ class NetEqImpl : public webrtc::NetEq {
 
   int FilteredCurrentDelayMs() const override;
 
+  // Sets the playout mode to |mode|.
+  // Deprecated.
+  // TODO(henrik.lundin) Delete.
+  void SetPlayoutMode(NetEqPlayoutMode mode) override;
+
+  // Returns the current playout mode.
+  // Deprecated.
+  // TODO(henrik.lundin) Delete.
+  NetEqPlayoutMode PlayoutMode() const override;
+
   // Writes the current network statistics to |stats|. The statistics are reset
   // after the call.
   int NetworkStatistics(NetEqNetworkStatistics* stats) override;
@@ -188,13 +197,13 @@ class NetEqImpl : public webrtc::NetEq {
   // Disables post-decode VAD.
   void DisableVad() override;
 
-  absl::optional<uint32_t> GetPlayoutTimestamp() const override;
+  rtc::Optional<uint32_t> GetPlayoutTimestamp() const override;
 
   int last_output_sample_rate_hz() const override;
 
-  absl::optional<CodecInst> GetDecoder(int payload_type) const override;
+  rtc::Optional<CodecInst> GetDecoder(int payload_type) const override;
 
-  absl::optional<SdpAudioFormat> GetDecoderFormat(
+  rtc::Optional<SdpAudioFormat> GetDecoderFormat(
       int payload_type) const override;
 
   int SetTargetNumberOfChannels() override;
@@ -326,6 +335,12 @@ class NetEqImpl : public webrtc::NetEq {
   int DoDtmf(const DtmfEvent& dtmf_event, bool* play_dtmf)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
 
+  // Produces packet-loss concealment using alternative methods. If the codec
+  // has an internal PLC, it is called to generate samples. Otherwise, the
+  // method performs zero-stuffing.
+  void DoAlternativePlc(bool increase_timestamp)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+
   // Overdub DTMF on top of |output|.
   int DtmfOverdub(const DtmfEvent& dtmf_event,
                   size_t num_channels,
@@ -402,17 +417,20 @@ class NetEqImpl : public webrtc::NetEq {
   size_t decoder_frame_length_ RTC_GUARDED_BY(crit_sect_);
   Modes last_mode_ RTC_GUARDED_BY(crit_sect_);
   Operations last_operation_ RTC_GUARDED_BY(crit_sect_);
+  std::unique_ptr<int16_t[]> mute_factor_array_ RTC_GUARDED_BY(crit_sect_);
   size_t decoded_buffer_length_ RTC_GUARDED_BY(crit_sect_);
   std::unique_ptr<int16_t[]> decoded_buffer_ RTC_GUARDED_BY(crit_sect_);
   uint32_t playout_timestamp_ RTC_GUARDED_BY(crit_sect_);
   bool new_codec_ RTC_GUARDED_BY(crit_sect_);
   uint32_t timestamp_ RTC_GUARDED_BY(crit_sect_);
   bool reset_decoder_ RTC_GUARDED_BY(crit_sect_);
-  absl::optional<uint8_t> current_rtp_payload_type_ RTC_GUARDED_BY(crit_sect_);
-  absl::optional<uint8_t> current_cng_rtp_payload_type_
+  rtc::Optional<uint8_t> current_rtp_payload_type_ RTC_GUARDED_BY(crit_sect_);
+  rtc::Optional<uint8_t> current_cng_rtp_payload_type_
       RTC_GUARDED_BY(crit_sect_);
   uint32_t ssrc_ RTC_GUARDED_BY(crit_sect_);
   bool first_packet_ RTC_GUARDED_BY(crit_sect_);
+  const BackgroundNoiseMode background_noise_mode_ RTC_GUARDED_BY(crit_sect_);
+  NetEqPlayoutMode playout_mode_ RTC_GUARDED_BY(crit_sect_);
   bool enable_fast_accelerate_ RTC_GUARDED_BY(crit_sect_);
   std::unique_ptr<NackTracker> nack_ RTC_GUARDED_BY(crit_sect_);
   bool nack_enabled_ RTC_GUARDED_BY(crit_sect_);
@@ -422,9 +440,7 @@ class NetEqImpl : public webrtc::NetEq {
   std::unique_ptr<TickTimer::Stopwatch> generated_noise_stopwatch_
       RTC_GUARDED_BY(crit_sect_);
   std::vector<uint32_t> last_decoded_timestamps_ RTC_GUARDED_BY(crit_sect_);
-  ExpandUmaLogger expand_uma_logger_ RTC_GUARDED_BY(crit_sect_);
-  ExpandUmaLogger speech_expand_uma_logger_ RTC_GUARDED_BY(crit_sect_);
-  bool no_time_stretching_ RTC_GUARDED_BY(crit_sect_);  // Only used for test.
+  const bool use_dtx_delay_fix_ RTC_GUARDED_BY(crit_sect_);
 
  private:
   RTC_DISALLOW_COPY_AND_ASSIGN(NetEqImpl);

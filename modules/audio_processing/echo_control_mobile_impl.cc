@@ -120,10 +120,10 @@ EchoControlMobileImpl::EchoControlMobileImpl(rtc::CriticalSection* crit_render,
 }
 
 EchoControlMobileImpl::~EchoControlMobileImpl() {
-  if (external_echo_path_ != NULL) {
-    delete[] external_echo_path_;
-    external_echo_path_ = NULL;
-  }
+    if (external_echo_path_ != NULL) {
+      delete [] external_echo_path_;
+      external_echo_path_ = NULL;
+    }
 }
 
 void EchoControlMobileImpl::ProcessRenderAudio(
@@ -218,7 +218,8 @@ int EchoControlMobileImpl::ProcessCaptureAudio(AudioBuffer* audio,
       ++handle_index;
     }
     for (size_t band = 1u; band < audio->num_bands(); ++band) {
-      memset(audio->split_bands(capture)[band], 0,
+      memset(audio->split_bands(capture)[band],
+             0,
              audio->num_frames_per_band() *
                  sizeof(audio->split_bands(capture)[band][0]));
     }
@@ -268,7 +269,8 @@ int EchoControlMobileImpl::set_routing_mode(RoutingMode mode) {
   return Configure();
 }
 
-EchoControlMobile::RoutingMode EchoControlMobileImpl::routing_mode() const {
+EchoControlMobile::RoutingMode EchoControlMobileImpl::routing_mode()
+    const {
   rtc::CritScope cs(crit_capture_);
   return routing_mode_;
 }
@@ -351,9 +353,9 @@ void EchoControlMobileImpl::Initialize(int sample_rate_hz,
     return;
   }
 
-  // AECM only supports 16 kHz or lower sample rates.
-  RTC_DCHECK_LE(stream_properties_->sample_rate_hz,
-                AudioProcessing::kSampleRate16kHz);
+  if (stream_properties_->sample_rate_hz > AudioProcessing::kSampleRate16kHz) {
+    RTC_LOG(LS_ERROR) << "AECM only supports 16 kHz or lower sample rates";
+  }
 
   cancellers_.resize(
       NumCancellersRequired(stream_properties_->num_output_channels,

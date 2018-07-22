@@ -12,31 +12,46 @@
 
 #include <memory>
 
-#include "absl/memory/memory.h"
-#include "p2p/base/port.h"
 #include "pc/mediasession.h"
 #include "pc/webrtcsdp.h"
+#include "p2p/base/port.h"
 #include "rtc_base/arraysize.h"
 #include "rtc_base/stringencode.h"
 
 using cricket::SessionDescription;
 
 namespace webrtc {
-namespace {
+
+static const char* kSupportedTypes[] = {
+    JsepSessionDescription::kOffer,
+    JsepSessionDescription::kPrAnswer,
+    JsepSessionDescription::kAnswer
+};
+
+static bool IsTypeSupported(const std::string& type) {
+  bool type_supported = false;
+  for (size_t i = 0; i < arraysize(kSupportedTypes); ++i) {
+    if (kSupportedTypes[i] == type) {
+      type_supported = true;
+      break;
+    }
+  }
+  return type_supported;
+}
 
 // RFC 5245
 // It is RECOMMENDED that default candidates be chosen based on the
 // likelihood of those candidates to work with the peer that is being
 // contacted.  It is RECOMMENDED that relayed > reflexive > host.
-constexpr int kPreferenceUnknown = 0;
-constexpr int kPreferenceHost = 1;
-constexpr int kPreferenceReflexive = 2;
-constexpr int kPreferenceRelayed = 3;
+static const int kPreferenceUnknown = 0;
+static const int kPreferenceHost = 1;
+static const int kPreferenceReflexive = 2;
+static const int kPreferenceRelayed = 3;
 
-constexpr char kDummyAddress[] = "0.0.0.0";
-constexpr int kDummyPort = 9;
+static const char kDummyAddress[] = "0.0.0.0";
+static const int kDummyPort = 9;
 
-int GetCandidatePreferenceFromType(const std::string& type) {
+static int GetCandidatePreferenceFromType(const std::string& type) {
   int preference = kPreferenceUnknown;
   if (type == cricket::LOCAL_PORT_TYPE) {
     preference = kPreferenceHost;
@@ -52,9 +67,9 @@ int GetCandidatePreferenceFromType(const std::string& type) {
 
 // Update the connection address for the MediaContentDescription based on the
 // candidates.
-void UpdateConnectionAddress(
+static void UpdateConnectionAddress(
     const JsepCandidateCollection& candidate_collection,
-    cricket::MediaContentDescription* media_desc) {
+    cricket::ContentDescription* content_description) {
   int port = kDummyPort;
   std::string ip = kDummyAddress;
   int current_preference = kPreferenceUnknown;
@@ -88,10 +103,9 @@ void UpdateConnectionAddress(
   rtc::SocketAddress connection_addr;
   connection_addr.SetIP(ip);
   connection_addr.SetPort(port);
-  media_desc->set_connection_address(connection_addr);
+  static_cast<cricket::MediaContentDescription*>(content_description)
+      ->set_connection_address(connection_addr);
 }
-
-}  // namespace
 
 const char SessionDescriptionInterface::kOffer[] = "offer";
 const char SessionDescriptionInterface::kPrAnswer[] = "pranswer";
@@ -100,85 +114,23 @@ const char SessionDescriptionInterface::kAnswer[] = "answer";
 const int JsepSessionDescription::kDefaultVideoCodecId = 100;
 const char JsepSessionDescription::kDefaultVideoCodecName[] = "VP8";
 
-const char* SdpTypeToString(SdpType type) {
-  switch (type) {
-    case SdpType::kOffer:
-      return SessionDescriptionInterface::kOffer;
-    case SdpType::kPrAnswer:
-      return SessionDescriptionInterface::kPrAnswer;
-    case SdpType::kAnswer:
-      return SessionDescriptionInterface::kAnswer;
-  }
-  return "";
-}
-
-absl::optional<SdpType> SdpTypeFromString(const std::string& type_str) {
-  if (type_str == SessionDescriptionInterface::kOffer) {
-    return SdpType::kOffer;
-  } else if (type_str == SessionDescriptionInterface::kPrAnswer) {
-    return SdpType::kPrAnswer;
-  } else if (type_str == SessionDescriptionInterface::kAnswer) {
-    return SdpType::kAnswer;
-  } else {
-    return absl::nullopt;
-  }
-}
-
-// TODO(steveanton): Remove this default implementation once Chromium has been
-// updated.
-SdpType SessionDescriptionInterface::GetType() const {
-  absl::optional<SdpType> maybe_type = SdpTypeFromString(type());
-  if (maybe_type) {
-    return *maybe_type;
-  } else {
-    RTC_LOG(LS_WARNING) << "Default implementation of "
-                           "SessionDescriptionInterface::GetType does not "
-                           "recognize the result from type(), returning "
-                           "kOffer.";
-    return SdpType::kOffer;
-  }
-}
-
 SessionDescriptionInterface* CreateSessionDescription(const std::string& type,
                                                       const std::string& sdp,
                                                       SdpParseError* error) {
-  absl::optional<SdpType> maybe_type = SdpTypeFromString(type);
-  if (!maybe_type) {
-    return nullptr;
+  if (!IsTypeSupported(type)) {
+    return NULL;
   }
 
-  return CreateSessionDescription(*maybe_type, sdp, error).release();
-}
-
-std::unique_ptr<SessionDescriptionInterface> CreateSessionDescription(
-    SdpType type,
-    const std::string& sdp) {
-  return CreateSessionDescription(type, sdp, nullptr);
-}
-
-std::unique_ptr<SessionDescriptionInterface> CreateSessionDescription(
-    SdpType type,
-    const std::string& sdp,
-    SdpParseError* error_out) {
-  auto jsep_desc = absl::make_unique<JsepSessionDescription>(type);
-  if (!SdpDeserialize(sdp, jsep_desc.get(), error_out)) {
-    return nullptr;
+  JsepSessionDescription* jsep_desc = new JsepSessionDescription(type);
+  if (!SdpDeserialize(sdp, jsep_desc, error)) {
+    delete jsep_desc;
+    return NULL;
   }
-  return std::move(jsep_desc);
+  return jsep_desc;
 }
 
-JsepSessionDescription::JsepSessionDescription(SdpType type) : type_(type) {}
-
-JsepSessionDescription::JsepSessionDescription(const std::string& type) {
-  absl::optional<SdpType> maybe_type = SdpTypeFromString(type);
-  if (maybe_type) {
-    type_ = *maybe_type;
-  } else {
-    RTC_LOG(LS_WARNING)
-        << "JsepSessionDescription constructed with invalid type string: "
-        << type << ". Assuming it is an offer.";
-    type_ = SdpType::kOffer;
-  }
+JsepSessionDescription::JsepSessionDescription(const std::string& type)
+    : type_(type) {
 }
 
 JsepSessionDescription::~JsepSessionDescription() {}
@@ -233,7 +185,7 @@ bool JsepSessionDescription::AddCandidate(
         updated_candidate_wrapper.release());
     UpdateConnectionAddress(
         candidate_collection_[mediasection_index],
-        description_->contents()[mediasection_index].media_description());
+        description_->contents()[mediasection_index].description);
   }
 
   return true;
@@ -251,7 +203,7 @@ size_t JsepSessionDescription::RemoveCandidates(
     num_removed += candidate_collection_[mediasection_index].remove(candidate);
     UpdateConnectionAddress(
         candidate_collection_[mediasection_index],
-        description_->contents()[mediasection_index].media_description());
+        description_->contents()[mediasection_index].description);
   }
   return num_removed;
 }
@@ -273,7 +225,7 @@ bool JsepSessionDescription::ToString(std::string* out) const {
   if (!description_ || !out) {
     return false;
   }
-  *out = SdpSerialize(*this);
+  *out = SdpSerialize(*this, false);
   return !out->empty();
 }
 

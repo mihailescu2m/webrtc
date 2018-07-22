@@ -10,11 +10,11 @@
 
 #include <memory>
 
-#include "modules/desktop_capture/desktop_capture_options.h"
+#include "modules/desktop_capture/mouse_cursor_monitor.h"
 #include "modules/desktop_capture/desktop_capturer.h"
+#include "modules/desktop_capture/desktop_capture_options.h"
 #include "modules/desktop_capture/desktop_frame.h"
 #include "modules/desktop_capture/mouse_cursor.h"
-#include "modules/desktop_capture/mouse_cursor_monitor.h"
 #include "test/gtest.h"
 
 namespace webrtc {
@@ -22,7 +22,9 @@ namespace webrtc {
 class MouseCursorMonitorTest : public testing::Test,
                                public MouseCursorMonitor::Callback {
  public:
-  MouseCursorMonitorTest() : position_received_(false) {}
+  MouseCursorMonitorTest()
+      : position_received_(false) {
+  }
 
   // MouseCursorMonitor::Callback interface
   void OnMouseCursor(MouseCursor* cursor_image) override {
@@ -31,16 +33,14 @@ class MouseCursorMonitorTest : public testing::Test,
 
   void OnMouseCursorPosition(MouseCursorMonitor::CursorState state,
                              const DesktopVector& position) override {
-    RTC_NOTREACHED();
-  }
-
-  void OnMouseCursorPosition(const DesktopVector& position) override {
+    state_ = state;
     position_ = position;
     position_received_ = true;
   }
 
  protected:
   std::unique_ptr<MouseCursor> cursor_image_;
+  MouseCursorMonitor::CursorState state_;
   DesktopVector position_;
   bool position_received_;
 };
@@ -78,6 +78,7 @@ TEST_F(MouseCursorMonitorTest, MAYBE(FromScreen)) {
             cursor_image_->image()->size().height());
 
   EXPECT_TRUE(position_received_);
+  EXPECT_EQ(MouseCursorMonitor::INSIDE, state_);
 }
 
 TEST_F(MouseCursorMonitorTest, MAYBE(FromWindow)) {

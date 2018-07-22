@@ -18,18 +18,13 @@
 #include "media/base/fakevideocapturer.h"
 #include "media/base/fakevideorenderer.h"
 #include "pc/videocapturertracksource.h"
-#include "rtc_base/arraysize.h"
-#include "rtc_base/event.h"
 #include "rtc_base/gunit.h"
-#include "rtc_base/task_queue.h"
 
-using cricket::FOURCC_I420;
-using cricket::VideoFormat;
 using webrtc::FakeConstraints;
+using webrtc::VideoCapturerTrackSource;
 using webrtc::MediaConstraintsInterface;
 using webrtc::MediaSourceInterface;
 using webrtc::ObserverInterface;
-using webrtc::VideoCapturerTrackSource;
 using webrtc::VideoTrackSourceInterface;
 
 namespace {
@@ -47,13 +42,23 @@ class TestVideoCapturer : public cricket::FakeVideoCapturer {
  public:
   explicit TestVideoCapturer(bool is_screencast)
       : FakeVideoCapturer(is_screencast), test_without_formats_(false) {
-    static const auto fps = VideoFormat::FpsToInterval(30);
-    static const VideoFormat formats[] = {
-        {1280, 720, fps, FOURCC_I420}, {640, 480, fps, FOURCC_I420},
-        {640, 400, fps, FOURCC_I420},  {320, 240, fps, FOURCC_I420},
-        {352, 288, fps, FOURCC_I420},
-    };
-    ResetSupportedFormats({&formats[0], &formats[arraysize(formats)]});
+    std::vector<cricket::VideoFormat> formats;
+    formats.push_back(
+        cricket::VideoFormat(1280, 720, cricket::VideoFormat::FpsToInterval(30),
+                             cricket::FOURCC_I420));
+    formats.push_back(
+        cricket::VideoFormat(640, 480, cricket::VideoFormat::FpsToInterval(30),
+                             cricket::FOURCC_I420));
+    formats.push_back(
+        cricket::VideoFormat(640, 400, cricket::VideoFormat::FpsToInterval(30),
+                             cricket::FOURCC_I420));
+    formats.push_back(
+        cricket::VideoFormat(320, 240, cricket::VideoFormat::FpsToInterval(30),
+                             cricket::FOURCC_I420));
+    formats.push_back(
+        cricket::VideoFormat(352, 288, cricket::VideoFormat::FpsToInterval(30),
+                             cricket::FOURCC_I420));
+    ResetSupportedFormats(formats);
   }
 
   // This function is used for resetting the supported capture formats and
@@ -62,21 +67,22 @@ class TestVideoCapturer : public cricket::FakeVideoCapturer {
   // Chrome implementation.
   void TestWithoutCameraFormats() {
     test_without_formats_ = true;
-    std::vector<VideoFormat> formats;
+    std::vector<cricket::VideoFormat> formats;
     ResetSupportedFormats(formats);
   }
 
-  virtual cricket::CaptureState Start(const VideoFormat& capture_format) {
+  virtual cricket::CaptureState Start(
+      const cricket::VideoFormat& capture_format) {
     if (test_without_formats_) {
-      std::vector<VideoFormat> formats;
+      std::vector<cricket::VideoFormat> formats;
       formats.push_back(capture_format);
       ResetSupportedFormats(formats);
     }
     return FakeVideoCapturer::Start(capture_format);
   }
 
-  virtual bool GetBestCaptureFormat(const VideoFormat& desired,
-                                    VideoFormat* best_format) {
+  virtual bool GetBestCaptureFormat(const cricket::VideoFormat& desired,
+                                    cricket::VideoFormat* best_format) {
     if (test_without_formats_) {
       *best_format = desired;
       return true;
@@ -125,16 +131,6 @@ class VideoCapturerTrackSourceTest : public testing::Test {
     source_->AddOrUpdateSink(&renderer_, rtc::VideoSinkWants());
   }
 
-  void CaptureSingleFrame() {
-    rtc::Event event(false, false);
-    task_queue_.PostTask([this, &event]() {
-      ASSERT_TRUE(capturer_->CaptureFrame());
-      event.Set();
-    });
-    event.Wait(rtc::Event::kForever);
-  }
-
-  rtc::TaskQueue task_queue_{"VideoCapturerTrackSourceTest"};
   std::unique_ptr<cricket::VideoCapturer> capturer_cleanup_;
   TestVideoCapturer* capturer_;
   cricket::FakeVideoRenderer renderer_;
@@ -151,7 +147,7 @@ TEST_F(VideoCapturerTrackSourceTest, CapturerStartStop) {
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
 
-  CaptureSingleFrame();
+  ASSERT_TRUE(capturer_->CaptureFrame());
   EXPECT_EQ(1, renderer_.num_rendered_frames());
 
   capturer_->Stop();
@@ -182,7 +178,7 @@ TEST_F(VideoCapturerTrackSourceTest, MandatoryConstraintCif5Fps) {
   CreateVideoCapturerSource(&constraints);
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
-  const VideoFormat* format = capturer_->GetCaptureFormat();
+  const cricket::VideoFormat* format = capturer_->GetCaptureFormat();
   ASSERT_TRUE(format != NULL);
   EXPECT_EQ(352, format->width);
   EXPECT_EQ(288, format->height);
@@ -202,7 +198,7 @@ TEST_F(VideoCapturerTrackSourceTest, MandatoryMinVgaOptional720P) {
   CreateVideoCapturerSource(&constraints);
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
-  const VideoFormat* format = capturer_->GetCaptureFormat();
+  const cricket::VideoFormat* format = capturer_->GetCaptureFormat();
   ASSERT_TRUE(format != NULL);
   EXPECT_EQ(1280, format->width);
   EXPECT_EQ(720, format->height);
@@ -223,7 +219,7 @@ TEST_F(VideoCapturerTrackSourceTest, MandatoryAspectRatio4To3) {
   CreateVideoCapturerSource(&constraints);
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
-  const VideoFormat* format = capturer_->GetCaptureFormat();
+  const cricket::VideoFormat* format = capturer_->GetCaptureFormat();
   ASSERT_TRUE(format != NULL);
   EXPECT_EQ(640, format->width);
   EXPECT_EQ(480, format->height);
@@ -248,7 +244,7 @@ TEST_F(VideoCapturerTrackSourceTest, OptionalAspectRatioTooHigh) {
   CreateVideoCapturerSource(&constraints);
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
-  const VideoFormat* format = capturer_->GetCaptureFormat();
+  const cricket::VideoFormat* format = capturer_->GetCaptureFormat();
   ASSERT_TRUE(format != NULL);
   double aspect_ratio = static_cast<double>(format->width) / format->height;
   EXPECT_LT(aspect_ratio, 2);
@@ -262,7 +258,7 @@ TEST_F(VideoCapturerTrackSourceTest, NoCameraCapability) {
   CreateVideoCapturerSource();
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
-  const VideoFormat* format = capturer_->GetCaptureFormat();
+  const cricket::VideoFormat* format = capturer_->GetCaptureFormat();
   ASSERT_TRUE(format != NULL);
   EXPECT_EQ(640, format->width);
   EXPECT_EQ(480, format->height);
@@ -284,7 +280,7 @@ TEST_F(VideoCapturerTrackSourceTest, NoCameraCapability16To9Ratio) {
   CreateVideoCapturerSource(&constraints);
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
-  const VideoFormat* format = capturer_->GetCaptureFormat();
+  const cricket::VideoFormat* format = capturer_->GetCaptureFormat();
   double aspect_ratio = static_cast<double>(format->width) / format->height;
   EXPECT_LE(requested_aspect_ratio, aspect_ratio);
 }
@@ -322,7 +318,7 @@ TEST_F(VideoCapturerTrackSourceTest, SetValidDenoisingConstraint) {
 TEST_F(VideoCapturerTrackSourceTest, NoiseReductionConstraintNotSet) {
   FakeConstraints constraints;
   CreateVideoCapturerSource(&constraints);
-  EXPECT_EQ(absl::nullopt, source_->needs_denoising());
+  EXPECT_EQ(rtc::nullopt, source_->needs_denoising());
 }
 
 TEST_F(VideoCapturerTrackSourceTest,
@@ -357,7 +353,7 @@ TEST_F(VideoCapturerTrackSourceTest, NoiseReductionAndInvalidKeyMandatory) {
 
   EXPECT_EQ_WAIT(MediaSourceInterface::kEnded, state_observer_->state(),
                  kMaxWaitMs);
-  EXPECT_EQ(absl::nullopt, source_->needs_denoising());
+  EXPECT_EQ(rtc::nullopt, source_->needs_denoising());
 }
 
 TEST_F(VideoCapturerTrackSourceTest, InvalidDenoisingValueOptional) {
@@ -370,13 +366,12 @@ TEST_F(VideoCapturerTrackSourceTest, InvalidDenoisingValueOptional) {
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
 
-  EXPECT_EQ(absl::nullopt, source_->needs_denoising());
+  EXPECT_EQ(rtc::nullopt, source_->needs_denoising());
 }
 
 TEST_F(VideoCapturerTrackSourceTest, InvalidDenoisingValueMandatory) {
   FakeConstraints constraints;
-  // absl::optional constraints should be ignored if the mandatory constraints
-  // fail.
+  // Optional constraints should be ignored if the mandatory constraints fail.
   constraints.AddOptional(MediaConstraintsInterface::kNoiseReduction, "false");
   // Values are case-sensitive and must be all lower-case.
   constraints.AddMandatory(MediaConstraintsInterface::kNoiseReduction, "True");
@@ -385,7 +380,7 @@ TEST_F(VideoCapturerTrackSourceTest, InvalidDenoisingValueMandatory) {
 
   EXPECT_EQ_WAIT(MediaSourceInterface::kEnded, state_observer_->state(),
                  kMaxWaitMs);
-  EXPECT_EQ(absl::nullopt, source_->needs_denoising());
+  EXPECT_EQ(rtc::nullopt, source_->needs_denoising());
 }
 
 TEST_F(VideoCapturerTrackSourceTest, MixedOptionsAndConstraints) {
@@ -400,7 +395,7 @@ TEST_F(VideoCapturerTrackSourceTest, MixedOptionsAndConstraints) {
   CreateVideoCapturerSource(&constraints);
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
-  const VideoFormat* format = capturer_->GetCaptureFormat();
+  const cricket::VideoFormat* format = capturer_->GetCaptureFormat();
   ASSERT_TRUE(format != NULL);
   EXPECT_EQ(352, format->width);
   EXPECT_EQ(288, format->height);
@@ -419,7 +414,7 @@ TEST_F(VideoCapturerTrackSourceTest, ScreencastResolutionNoConstraint) {
   ASSERT_TRUE(source_->is_screencast());
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
-  const VideoFormat* format = capturer_->GetCaptureFormat();
+  const cricket::VideoFormat* format = capturer_->GetCaptureFormat();
   ASSERT_TRUE(format != NULL);
   EXPECT_EQ(640, format->width);
   EXPECT_EQ(480, format->height);
@@ -440,7 +435,7 @@ TEST_F(VideoCapturerTrackSourceTest, ScreencastResolutionWithConstraint) {
   ASSERT_TRUE(source_->is_screencast());
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
-  const VideoFormat* format = capturer_->GetCaptureFormat();
+  const cricket::VideoFormat* format = capturer_->GetCaptureFormat();
   ASSERT_TRUE(format != NULL);
   EXPECT_EQ(480, format->width);
   EXPECT_EQ(270, format->height);
@@ -464,7 +459,7 @@ TEST_F(VideoCapturerTrackSourceTest, OptionalSubOneFpsConstraints) {
   CreateVideoCapturerSource(&constraints);
   EXPECT_EQ_WAIT(MediaSourceInterface::kLive, state_observer_->state(),
                  kMaxWaitMs);
-  const VideoFormat* format = capturer_->GetCaptureFormat();
+  const cricket::VideoFormat* format = capturer_->GetCaptureFormat();
   ASSERT_TRUE(format != NULL);
   EXPECT_EQ(1, format->framerate());
 }

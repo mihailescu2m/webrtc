@@ -27,7 +27,7 @@ class RTPReceiverAudio : public RTPReceiverStrategy,
                          public TelephoneEventHandler {
  public:
   explicit RTPReceiverAudio(RtpData* data_callback);
-  ~RTPReceiverAudio() override;
+  virtual ~RTPReceiverAudio() {}
 
   // The following three methods implement the TelephoneEventHandler interface.
   // Forward DTMFs to decoder for playout.
@@ -39,21 +39,30 @@ class RTPReceiverAudio : public RTPReceiverStrategy,
   // Is TelephoneEvent configured with |payload_type|.
   bool TelephoneEventPayloadType(const int8_t payload_type) const override;
 
-  TelephoneEventHandler* GetTelephoneEventHandler() override;
+  TelephoneEventHandler* GetTelephoneEventHandler() override { return this; }
 
   // Returns true if CNG is configured with |payload_type|.
   bool CNGPayloadType(const int8_t payload_type);
 
   int32_t ParseRtpPacket(WebRtcRTPHeader* rtp_header,
                          const PayloadUnion& specific_payload,
+                         bool is_red,
                          const uint8_t* packet,
                          size_t payload_length,
                          int64_t timestamp_ms) override;
 
   RTPAliveType ProcessDeadOrAlive(uint16_t last_payload_length) const override;
 
+  bool ShouldReportCsrcChanges(uint8_t payload_type) const override;
+
   int32_t OnNewPayloadTypeCreated(int payload_type,
                                   const SdpAudioFormat& audio_format) override;
+
+  int32_t InvokeOnInitializeDecoder(
+      RtpFeedback* callback,
+      int8_t payload_type,
+      const char payload_name[RTP_PAYLOAD_NAME_SIZE],
+      const PayloadUnion& specific_payload) const override;
 
   // We need to look out for special payload types here and sometimes reset
   // statistics. In addition we sometimes need to tweak the frequency.
@@ -61,11 +70,14 @@ class RTPReceiverAudio : public RTPReceiverStrategy,
                            PayloadUnion* specific_payload,
                            bool* should_discard_changes) override;
 
+  int Energy(uint8_t array_of_energy[kRtpCsrcSize]) const override;
+
  private:
   int32_t ParseAudioCodecSpecific(WebRtcRTPHeader* rtp_header,
                                   const uint8_t* payload_data,
                                   size_t payload_length,
-                                  const AudioPayload& audio_specific);
+                                  const AudioPayload& audio_specific,
+                                  bool is_red);
 
   bool telephone_event_forward_to_decoder_;
   int8_t telephone_event_payload_type_;
@@ -75,6 +87,9 @@ class RTPReceiverAudio : public RTPReceiverStrategy,
   int8_t cng_wb_payload_type_;
   int8_t cng_swb_payload_type_;
   int8_t cng_fb_payload_type_;
+
+  uint8_t num_energy_;
+  uint8_t current_remote_energy_[kRtpCsrcSize];
 
   ThreadUnsafeOneTimeEvent first_packet_received_;
 };

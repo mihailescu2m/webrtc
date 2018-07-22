@@ -59,9 +59,9 @@ void QualityThreshold::AddMeasurement(int measurement) {
 
   float sufficient_majority = fraction_ * max_measurements_;
   if (count_high_ >= sufficient_majority) {
-    is_high_ = true;
+    is_high_ = rtc::Optional<bool>(true);
   } else if (count_low_ >= sufficient_majority) {
-    is_high_ = false;
+    is_high_ = rtc::Optional<bool>(false);
   }
 
   if (until_full_ > 0)
@@ -74,13 +74,13 @@ void QualityThreshold::AddMeasurement(int measurement) {
   }
 }
 
-absl::optional<bool> QualityThreshold::IsHigh() const {
+rtc::Optional<bool> QualityThreshold::IsHigh() const {
   return is_high_;
 }
 
-absl::optional<double> QualityThreshold::CalculateVariance() const {
+rtc::Optional<double> QualityThreshold::CalculateVariance() const {
   if (until_full_ > 0) {
-    return absl::nullopt;
+    return rtc::Optional<double>();
   }
 
   double variance = 0;
@@ -88,16 +88,17 @@ absl::optional<double> QualityThreshold::CalculateVariance() const {
   for (int i = 0; i < max_measurements_; ++i) {
     variance += (buffer_[i] - mean) * (buffer_[i] - mean);
   }
-  return variance / (max_measurements_ - 1);
+  return rtc::Optional<double>(variance / (max_measurements_ - 1));
 }
 
-absl::optional<double> QualityThreshold::FractionHigh(
+rtc::Optional<double> QualityThreshold::FractionHigh(
     int min_required_samples) const {
   RTC_DCHECK_GT(min_required_samples, 0);
   if (num_certain_states_ < min_required_samples)
-    return absl::nullopt;
+    return rtc::Optional<double>();
 
-  return static_cast<double>(num_high_states_) / num_certain_states_;
+  return rtc::Optional<double>(static_cast<double>(num_high_states_) /
+                               num_certain_states_);
 }
 
 }  // namespace webrtc

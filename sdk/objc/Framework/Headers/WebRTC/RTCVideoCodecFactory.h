@@ -19,7 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 RTC_EXPORT
 @protocol RTCVideoEncoderFactory <NSObject>
 
-- (nullable id<RTCVideoEncoder>)createEncoder:(RTCVideoCodecInfo *)info;
+- (id<RTCVideoEncoder>)createEncoder:(RTCVideoCodecInfo *)info;
 - (NSArray<RTCVideoCodecInfo *> *)supportedCodecs;  // TODO(andersc): "supportedFormats" instead?
 
 @end
@@ -28,7 +28,7 @@ RTC_EXPORT
 RTC_EXPORT
 @protocol RTCVideoDecoderFactory <NSObject>
 
-- (nullable id<RTCVideoDecoder>)createDecoder:(RTCVideoCodecInfo *)info;
+- (id<RTCVideoDecoder>)createDecoder:(RTCVideoCodecInfo *)info;
 - (NSArray<RTCVideoCodecInfo *> *)supportedCodecs;  // TODO(andersc): "supportedFormats" instead?
 
 @end

@@ -29,6 +29,7 @@ class FakeDecoder : public VideoDecoder {
 
   int32_t Decode(const EncodedImage& input,
                  bool missing_frames,
+                 const RTPFragmentationHeader* fragmentation,
                  const CodecSpecificInfo* codec_specific_info,
                  int64_t render_time_ms) override;
 
@@ -42,9 +43,8 @@ class FakeDecoder : public VideoDecoder {
   static const char* kImplementationName;
 
  private:
+  VideoCodec config_;
   DecodedImageCallback* callback_;
-  int width_;
-  int height_;
 };
 
 class FakeH264Decoder : public FakeDecoder {
@@ -53,10 +53,23 @@ class FakeH264Decoder : public FakeDecoder {
 
   int32_t Decode(const EncodedImage& input,
                  bool missing_frames,
+                 const RTPFragmentationHeader* fragmentation,
                  const CodecSpecificInfo* codec_specific_info,
                  int64_t render_time_ms) override;
 };
 
+class FakeNullDecoder : public FakeDecoder {
+ public:
+  virtual ~FakeNullDecoder() {}
+
+  int32_t Decode(const EncodedImage& input,
+                 bool missing_frames,
+                 const RTPFragmentationHeader* fragmentation,
+                 const CodecSpecificInfo* codec_specific_info,
+                 int64_t render_time_ms) override {
+    return 0;
+  }
+};
 }  // namespace test
 }  // namespace webrtc
 

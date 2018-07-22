@@ -39,11 +39,6 @@ void NetworkMonitorBase::OnMessage(Message* msg) {
   SignalNetworksChanged();
 }
 
-AdapterType NetworkMonitorBase::GetVpnUnderlyingAdapterType(
-    const std::string& interface_name) {
-  return ADAPTER_TYPE_UNKNOWN;
-}
-
 NetworkMonitorFactory::NetworkMonitorFactory() {}
 NetworkMonitorFactory::~NetworkMonitorFactory() {}
 

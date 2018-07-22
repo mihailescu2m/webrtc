@@ -14,7 +14,6 @@
 
 @synthesize isActive = _isActive;
 @synthesize maxBitrateBps = _maxBitrateBps;
-@synthesize minBitrateBps = _minBitrateBps;
 @synthesize ssrc = _ssrc;
 
 - (instancetype)init {
@@ -29,10 +28,6 @@
       _maxBitrateBps =
           [NSNumber numberWithInt:*nativeParameters.max_bitrate_bps];
     }
-    if (nativeParameters.min_bitrate_bps) {
-      _minBitrateBps =
-          [NSNumber numberWithInt:*nativeParameters.min_bitrate_bps];
-    }
     if (nativeParameters.ssrc) {
       _ssrc = [NSNumber numberWithUnsignedLong:*nativeParameters.ssrc];
     }
@@ -44,13 +39,10 @@
   webrtc::RtpEncodingParameters parameters;
   parameters.active = _isActive;
   if (_maxBitrateBps != nil) {
-    parameters.max_bitrate_bps = absl::optional<int>(_maxBitrateBps.intValue);
-  }
-  if (_minBitrateBps != nil) {
-    parameters.min_bitrate_bps = absl::optional<int>(_minBitrateBps.intValue);
+    parameters.max_bitrate_bps = rtc::Optional<int>(_maxBitrateBps.intValue);
   }
   if (_ssrc != nil) {
-    parameters.ssrc = absl::optional<uint32_t>(_ssrc.unsignedLongValue);
+    parameters.ssrc = rtc::Optional<uint32_t>(_ssrc.unsignedLongValue);
   }
   return parameters;
 }

@@ -29,8 +29,7 @@ namespace jni {
 // Wraps a Java encoder and delegates all calls to it.
 class VideoEncoderWrapper : public VideoEncoder {
  public:
-  VideoEncoderWrapper(JNIEnv* jni, const JavaRef<jobject>& j_encoder);
-  ~VideoEncoderWrapper() override;
+  VideoEncoderWrapper(JNIEnv* jni, jobject j_encoder);
 
   int32_t InitEncode(const VideoCodec* codec_settings,
                      int32_t number_of_cores,
@@ -47,30 +46,30 @@ class VideoEncoderWrapper : public VideoEncoder {
 
   int32_t SetChannelParameters(uint32_t packet_loss, int64_t rtt) override;
 
-  int32_t SetRateAllocation(const VideoBitrateAllocation& allocation,
+  int32_t SetRateAllocation(const BitrateAllocation& allocation,
                             uint32_t framerate) override;
 
   ScalingSettings GetScalingSettings() const override;
 
-  bool SupportsNativeHandle() const override;
+  bool SupportsNativeHandle() const override { return true; }
 
   // Should only be called by JNI.
   void OnEncodedFrame(JNIEnv* jni,
-                      const JavaRef<jobject>& j_caller,
-                      const JavaRef<jobject>& j_buffer,
+                      jobject j_caller,
+                      jobject j_buffer,
                       jint encoded_width,
                       jint encoded_height,
                       jlong capture_time_ms,
                       jint frame_type,
                       jint rotation,
                       jboolean complete_frame,
-                      const JavaRef<jobject>& j_qp);
+                      jobject j_qp);
 
   const char* ImplementationName() const override;
 
  private:
   struct FrameExtraInfo {
-    int64_t capture_time_ns;  // Used as an identifier of the frame.
+    uint64_t capture_time_ns;  // Used as an identifier of the frame.
 
     uint32_t timestamp_rtp;
   };
@@ -79,21 +78,19 @@ class VideoEncoderWrapper : public VideoEncoder {
 
   // Takes Java VideoCodecStatus, handles it and returns WEBRTC_VIDEO_CODEC_*
   // status code.
-  int32_t HandleReturnCode(JNIEnv* jni,
-                           const JavaRef<jobject>& j_value,
-                           const char* method_name);
+  int32_t HandleReturnCode(JNIEnv* jni, jobject code);
 
   RTPFragmentationHeader ParseFragmentationHeader(
       const std::vector<uint8_t>& buffer);
   int ParseQp(const std::vector<uint8_t>& buffer);
   CodecSpecificInfo ParseCodecSpecificInfo(const EncodedImage& frame);
-  ScopedJavaLocalRef<jobject> ToJavaBitrateAllocation(
-      JNIEnv* jni,
-      const VideoBitrateAllocation& allocation);
+  jobject ToJavaBitrateAllocation(JNIEnv* jni,
+                                  const BitrateAllocation& allocation);
   std::string GetImplementationName(JNIEnv* jni) const;
 
-  const ScopedJavaGlobalRef<jobject> encoder_;
-  const ScopedJavaGlobalRef<jclass> int_array_class_;
+  const ScopedGlobalRef<jobject> encoder_;
+  const ScopedGlobalRef<jclass> frame_type_class_;
+  const ScopedGlobalRef<jclass> int_array_class_;
 
   std::string implementation_name_;
 
@@ -106,20 +103,15 @@ class VideoEncoderWrapper : public VideoEncoder {
   VideoCodec codec_settings_;
   H264BitstreamParser h264_bitstream_parser_;
 
+  // RTP state.
+  uint16_t picture_id_;
+  uint8_t tl0_pic_idx_;
+
   // VP9 variables to populate codec specific structure.
   GofInfoVP9 gof_;  // Contains each frame's temporal information for
                     // non-flexible VP9 mode.
   size_t gof_idx_;
 };
-
-/* If the j_encoder is a wrapped native encoder, unwrap it. If it is not,
- * wrap it in a VideoEncoderWrapper.
- */
-std::unique_ptr<VideoEncoder> JavaToNativeVideoEncoder(
-    JNIEnv* jni,
-    const JavaRef<jobject>& j_encoder);
-
-bool IsHardwareVideoEncoder(JNIEnv* jni, const JavaRef<jobject>& j_encoder);
 
 }  // namespace jni
 }  // namespace webrtc

@@ -21,7 +21,6 @@ namespace rtc {
 VideoBroadcaster::VideoBroadcaster() {
   thread_checker_.DetachFromThread();
 }
-VideoBroadcaster::~VideoBroadcaster() = default;
 
 void VideoBroadcaster::AddOrUpdateSink(
     VideoSinkInterface<webrtc::VideoFrame>* sink,
@@ -65,9 +64,9 @@ void VideoBroadcaster::OnFrame(const webrtc::VideoFrame& frame) {
       continue;
     }
     if (sink_pair.wants.black_frames) {
-      sink_pair.sink->OnFrame(
-          webrtc::VideoFrame(GetBlackFrameBuffer(frame.width(), frame.height()),
-                             frame.rotation(), frame.timestamp_us()));
+      sink_pair.sink->OnFrame(webrtc::VideoFrame(
+          GetBlackFrameBuffer(frame.width(), frame.height()), frame.rotation(),
+          frame.timestamp_us()));
     } else {
       sink_pair.sink->OnFrame(frame);
     }

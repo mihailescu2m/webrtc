@@ -17,19 +17,19 @@
 
 #include "call/call.h"
 #include "media/base/mediaengine.h"
-#include "modules/audio_device/include/audio_device.h"
 
 namespace webrtc {
 class AudioDecoderFactory;
+class AudioDeviceModule;
 class AudioMixer;
 class AudioProcessing;
 class VideoDecoderFactory;
 class VideoEncoderFactory;
-}  // namespace webrtc
+}
 namespace cricket {
 class WebRtcVideoDecoderFactory;
 class WebRtcVideoEncoderFactory;
-}  // namespace cricket
+}
 
 namespace cricket {
 
@@ -85,7 +85,8 @@ std::vector<webrtc::RtpExtension> FilterRtpExtensions(
     bool (*supported)(const std::string&),
     bool filter_redundant_extensions);
 
-webrtc::BitrateConstraints GetBitrateConfigForCodec(const Codec& codec);
+webrtc::Call::Config::BitrateConfig GetBitrateConfigForCodec(
+    const Codec& codec);
 
 }  // namespace cricket
 

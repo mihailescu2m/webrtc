@@ -38,7 +38,7 @@ class Observer : public webrtc::RemoteBitrateObserver {
   webrtc::Clock* clock_;
 };
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   webrtc::test::RtpFileReader* reader;
   webrtc::RemoteBitrateEstimator* estimator;
   webrtc::RtpHeaderParser* parser;
@@ -104,8 +104,10 @@ int main(int argc, char* argv[]) {
   printf("Parsed %d packets\nTime passed: %" PRId64 " ms\n", packet_counter,
          clock.TimeInMilliseconds());
   printf("Estimator used: %s\n", estimator_used.c_str());
-  printf("Packets with absolute send time: %d\n", abs_send_time_count);
-  printf("Packets with timestamp offset: %d\n", ts_offset_count);
+  printf("Packets with absolute send time: %d\n",
+         abs_send_time_count);
+  printf("Packets with timestamp offset: %d\n",
+         ts_offset_count);
   printf("Packets with no extension: %d\n",
          packet_counter - ts_offset_count - abs_send_time_count);
   return 0;

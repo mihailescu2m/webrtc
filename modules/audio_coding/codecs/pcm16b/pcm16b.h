@@ -38,7 +38,9 @@ extern "C" {
  *                                Always equal to twice the len input parameter.
  */
 
-size_t WebRtcPcm16b_Encode(const int16_t* speech, size_t len, uint8_t* encoded);
+size_t WebRtcPcm16b_Encode(const int16_t* speech,
+                           size_t len,
+                           uint8_t* encoded);
 
 /****************************************************************************
  * WebRtcPcm16b_Decode(...)
@@ -55,7 +57,9 @@ size_t WebRtcPcm16b_Encode(const int16_t* speech, size_t len, uint8_t* encoded);
  * Returned value               : Samples in speech
  */
 
-size_t WebRtcPcm16b_Decode(const uint8_t* encoded, size_t len, int16_t* speech);
+size_t WebRtcPcm16b_Decode(const uint8_t* encoded,
+                           size_t len,
+                           int16_t* speech);
 
 #ifdef __cplusplus
 }

@@ -23,8 +23,6 @@ class GainChangeCalculator {
   float CalculateGainChange(rtc::ArrayView<const int16_t> in,
                             rtc::ArrayView<const int16_t> out);
 
-  float LatestGain() const;
-
  private:
   void CalculateGain(rtc::ArrayView<const int16_t> in,
                      rtc::ArrayView<const int16_t> out,

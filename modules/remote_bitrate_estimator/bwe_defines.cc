@@ -19,8 +19,7 @@ namespace congestion_controller {
 int GetMinBitrateBps() {
   constexpr int kAudioMinBitrateBps = 5000;
   constexpr int kMinBitrateBps = 10000;
-  if (webrtc::field_trial::IsEnabled("WebRTC-Audio-SendSideBwe") &&
-      !webrtc::field_trial::IsEnabled("WebRTC-Audio-SendSideBwe-For-Video")) {
+  if (webrtc::field_trial::IsEnabled("WebRTC-Audio-SendSideBwe")) {
     return kAudioMinBitrateBps;
   }
   return kMinBitrateBps;
@@ -30,8 +29,11 @@ int GetMinBitrateBps() {
 
 RateControlInput::RateControlInput(
     BandwidthUsage bw_state,
-    const absl::optional<uint32_t>& estimated_throughput_bps)
-    : bw_state(bw_state), estimated_throughput_bps(estimated_throughput_bps) {}
+    const rtc::Optional<uint32_t>& incoming_bitrate,
+    double noise_var)
+    : bw_state(bw_state),
+      incoming_bitrate(incoming_bitrate),
+      noise_var(noise_var) {}
 
 RateControlInput::~RateControlInput() = default;
 

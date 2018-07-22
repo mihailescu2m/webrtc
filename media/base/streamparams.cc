@@ -11,9 +11,7 @@
 #include "media/base/streamparams.h"
 
 #include <list>
-
-#include "rtc_base/checks.h"
-#include "rtc_base/strings/string_builder.h"
+#include <sstream>
 
 namespace cricket {
 namespace {
@@ -22,7 +20,7 @@ namespace {
 void AddStream(std::vector<StreamParams>* streams, const StreamParams& stream) {
   streams->push_back(stream);
 }
-}  // namespace
+}
 
 const char kFecSsrcGroupSemantics[] = "FEC";
 const char kFecFrSsrcGroupSemantics[] = "FEC-FR";
@@ -38,21 +36,18 @@ bool GetStream(const StreamParamsVec& streams,
   return found != nullptr;
 }
 
-MediaStreams::MediaStreams() = default;
-MediaStreams::~MediaStreams() = default;
-
-bool MediaStreams::GetAudioStream(const StreamSelector& selector,
-                                  StreamParams* stream) {
+bool MediaStreams::GetAudioStream(
+    const StreamSelector& selector, StreamParams* stream) {
   return GetStream(audio_, selector, stream);
 }
 
-bool MediaStreams::GetVideoStream(const StreamSelector& selector,
-                                  StreamParams* stream) {
+bool MediaStreams::GetVideoStream(
+    const StreamSelector& selector, StreamParams* stream) {
   return GetStream(video_, selector, stream);
 }
 
-bool MediaStreams::GetDataStream(const StreamSelector& selector,
-                                 StreamParams* stream) {
+bool MediaStreams::GetDataStream(
+    const StreamSelector& selector, StreamParams* stream) {
   return GetStream(data_, selector, stream);
 }
 
@@ -74,98 +69,81 @@ void MediaStreams::AddDataStream(const StreamParams& stream) {
   AddStream(&data_, stream);
 }
 
-bool MediaStreams::RemoveAudioStream(const StreamSelector& selector) {
+bool MediaStreams::RemoveAudioStream(
+    const StreamSelector& selector) {
   return RemoveStream(&audio_, selector);
 }
 
-bool MediaStreams::RemoveVideoStream(const StreamSelector& selector) {
+bool MediaStreams::RemoveVideoStream(
+    const StreamSelector& selector) {
   return RemoveStream(&video_, selector);
 }
 
-bool MediaStreams::RemoveDataStream(const StreamSelector& selector) {
+bool MediaStreams::RemoveDataStream(
+    const StreamSelector& selector) {
   return RemoveStream(&data_, selector);
 }
 
 static std::string SsrcsToString(const std::vector<uint32_t>& ssrcs) {
-  char buf[1024];
-  rtc::SimpleStringBuilder sb(buf);
-  sb << "ssrcs:[";
+  std::ostringstream ost;
+  ost << "ssrcs:[";
   for (std::vector<uint32_t>::const_iterator it = ssrcs.begin();
        it != ssrcs.end(); ++it) {
     if (it != ssrcs.begin()) {
-      sb << ",";
+      ost << ",";
     }
-    sb << *it;
+    ost << *it;
   }
-  sb << "]";
-  return sb.str();
+  ost << "]";
+  return ost.str();
 }
-
-SsrcGroup::SsrcGroup(const std::string& usage,
-                     const std::vector<uint32_t>& ssrcs)
-    : semantics(usage), ssrcs(ssrcs) {}
-SsrcGroup::SsrcGroup(const SsrcGroup&) = default;
-SsrcGroup::SsrcGroup(SsrcGroup&&) = default;
-SsrcGroup::~SsrcGroup() = default;
-
-SsrcGroup& SsrcGroup::operator=(const SsrcGroup&) = default;
-SsrcGroup& SsrcGroup::operator=(SsrcGroup&&) = default;
 
 bool SsrcGroup::has_semantics(const std::string& semantics_in) const {
   return (semantics == semantics_in && ssrcs.size() > 0);
 }
 
 std::string SsrcGroup::ToString() const {
-  char buf[1024];
-  rtc::SimpleStringBuilder sb(buf);
-  sb << "{";
-  sb << "semantics:" << semantics << ";";
-  sb << SsrcsToString(ssrcs);
-  sb << "}";
-  return sb.str();
+  std::ostringstream ost;
+  ost << "{";
+  ost << "semantics:" << semantics << ";";
+  ost << SsrcsToString(ssrcs);
+  ost << "}";
+  return ost.str();
 }
 
-StreamParams::StreamParams() = default;
-StreamParams::StreamParams(const StreamParams&) = default;
-StreamParams::StreamParams(StreamParams&&) = default;
-StreamParams::~StreamParams() = default;
-StreamParams& StreamParams::operator=(const StreamParams&) = default;
-StreamParams& StreamParams::operator=(StreamParams&&) = default;
-
 std::string StreamParams::ToString() const {
-  char buf[2 * 1024];
-  rtc::SimpleStringBuilder sb(buf);
-  sb << "{";
+  std::ostringstream ost;
+  ost << "{";
   if (!groupid.empty()) {
-    sb << "groupid:" << groupid << ";";
+    ost << "groupid:" << groupid << ";";
   }
   if (!id.empty()) {
-    sb << "id:" << id << ";";
+    ost << "id:" << id << ";";
   }
-  sb << SsrcsToString(ssrcs) << ";";
-  sb << "ssrc_groups:";
+  ost << SsrcsToString(ssrcs) << ";";
+  ost << "ssrc_groups:";
   for (std::vector<SsrcGroup>::const_iterator it = ssrc_groups.begin();
        it != ssrc_groups.end(); ++it) {
     if (it != ssrc_groups.begin()) {
-      sb << ",";
+      ost << ",";
     }
-    sb << it->ToString();
+    ost << it->ToString();
   }
-  sb << ";";
+  ost << ";";
+  if (!type.empty()) {
+    ost << "type:" << type << ";";
+  }
+  if (!display.empty()) {
+    ost << "display:" << display << ";";
+  }
   if (!cname.empty()) {
-    sb << "cname:" << cname << ";";
+    ost << "cname:" << cname << ";";
   }
-  sb << "stream_ids:";
-  for (std::vector<std::string>::const_iterator it = stream_ids_.begin();
-       it != stream_ids_.end(); ++it) {
-    if (it != stream_ids_.begin()) {
-      sb << ",";
-    }
-    sb << *it;
+  if (!sync_label.empty()) {
+    ost << "sync_label:" << sync_label;
   }
-  sb << ";";
-  sb << "}";
-  return sb.str();
+  ost << "}";
+  return ost.str();
 }
 void StreamParams::GetPrimarySsrcs(std::vector<uint32_t>* ssrcs) const {
   const SsrcGroup* sim_group = get_ssrc_group(kSimSsrcGroupSemantics);
@@ -209,25 +187,14 @@ bool StreamParams::GetSecondarySsrc(const std::string& semantics,
                                     uint32_t* secondary_ssrc) const {
   for (std::vector<SsrcGroup>::const_iterator it = ssrc_groups.begin();
        it != ssrc_groups.end(); ++it) {
-    if (it->has_semantics(semantics) && it->ssrcs.size() >= 2 &&
-        it->ssrcs[0] == primary_ssrc) {
+    if (it->has_semantics(semantics) &&
+          it->ssrcs.size() >= 2 &&
+          it->ssrcs[0] == primary_ssrc) {
       *secondary_ssrc = it->ssrcs[1];
       return true;
     }
   }
   return false;
-}
-
-std::vector<std::string> StreamParams::stream_ids() const {
-  return stream_ids_;
-}
-
-void StreamParams::set_stream_ids(const std::vector<std::string>& stream_ids) {
-  stream_ids_ = stream_ids;
-}
-
-std::string StreamParams::first_stream_id() const {
-  return stream_ids_.empty() ? "" : stream_ids_[0];
 }
 
 bool IsOneSsrcStream(const StreamParams& sp) {

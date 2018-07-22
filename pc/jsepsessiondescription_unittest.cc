@@ -11,25 +11,21 @@
 #include <memory>
 #include <string>
 
-#include "absl/memory/memory.h"
 #include "api/candidate.h"
 #include "api/jsepicecandidate.h"
 #include "api/jsepsessiondescription.h"
-#include "p2p/base/p2pconstants.h"
+#include "api/webrtcsdp.h"
 #include "p2p/base/port.h"
+#include "p2p/base/p2pconstants.h"
+#include "p2p/base/sessiondescription.h"
 #include "pc/mediasession.h"
-#include "pc/sessiondescription.h"
-#include "pc/webrtcsdp.h"
 #include "rtc_base/gunit.h"
 #include "rtc_base/stringencode.h"
 
-using cricket::MediaProtocolType;
-using ::testing::Values;
 using webrtc::IceCandidateCollection;
 using webrtc::IceCandidateInterface;
 using webrtc::JsepIceCandidate;
 using webrtc::JsepSessionDescription;
-using webrtc::SdpType;
 using webrtc::SessionDescriptionInterface;
 
 static const char kCandidateUfrag[] = "ufrag";
@@ -55,10 +51,12 @@ static cricket::SessionDescription* CreateCricketSessionDescription() {
       new cricket::VideoContentDescription());
 
   audio->AddCodec(cricket::AudioCodec(103, "ISAC", 16000, 0, 0));
-  desc->AddContent(cricket::CN_AUDIO, MediaProtocolType::kRtp, audio.release());
+  desc->AddContent(cricket::CN_AUDIO, cricket::NS_JINGLE_RTP,
+                   audio.release());
 
   video->AddCodec(cricket::VideoCodec(120, "VP8"));
-  desc->AddContent(cricket::CN_VIDEO, MediaProtocolType::kRtp, video.release());
+  desc->AddContent(cricket::CN_VIDEO, cricket::NS_JINGLE_RTP,
+                   video.release());
 
   EXPECT_TRUE(desc->AddTransportInfo(cricket::TransportInfo(
       cricket::CN_AUDIO,
@@ -81,11 +79,13 @@ class JsepSessionDescriptionTest : public testing::Test {
     cricket::Candidate candidate(cricket::ICE_CANDIDATE_COMPONENT_RTP, "udp",
                                  address, 1, "", "", "local", 0, "1");
     candidate_ = candidate;
-    const std::string session_id = rtc::ToString(rtc::CreateRandomId64());
-    const std::string session_version = rtc::ToString(rtc::CreateRandomId());
-    jsep_desc_ = absl::make_unique<JsepSessionDescription>(SdpType::kOffer);
+    const std::string session_id =
+        rtc::ToString(rtc::CreateRandomId64());
+    const std::string session_version =
+        rtc::ToString(rtc::CreateRandomId());
+    jsep_desc_.reset(new JsepSessionDescription("dummy"));
     ASSERT_TRUE(jsep_desc_->Initialize(CreateCricketSessionDescription(),
-                                       session_id, session_version));
+        session_id, session_version));
   }
 
   std::string Serialize(const SessionDescriptionInterface* desc) {
@@ -95,11 +95,10 @@ class JsepSessionDescriptionTest : public testing::Test {
     return sdp;
   }
 
-  std::unique_ptr<SessionDescriptionInterface> DeSerialize(
-      const std::string& sdp) {
-    auto jsep_desc = absl::make_unique<JsepSessionDescription>(SdpType::kOffer);
-    EXPECT_TRUE(webrtc::SdpDeserialize(sdp, jsep_desc.get(), nullptr));
-    return std::move(jsep_desc);
+  SessionDescriptionInterface* DeSerialize(const std::string& sdp) {
+    JsepSessionDescription* desc(new JsepSessionDescription("dummy"));
+    EXPECT_TRUE(webrtc::SdpDeserialize(sdp, desc, nullptr));
+    return desc;
   }
 
   cricket::Candidate candidate_;
@@ -207,7 +206,8 @@ TEST_F(JsepSessionDescriptionTest, AddCandidateDuplicates) {
 TEST_F(JsepSessionDescriptionTest, SerializeDeserialize) {
   std::string sdp = Serialize(jsep_desc_.get());
 
-  auto parsed_jsep_desc = DeSerialize(sdp);
+  std::unique_ptr<SessionDescriptionInterface> parsed_jsep_desc(
+      DeSerialize(sdp));
   EXPECT_EQ(2u, parsed_jsep_desc->number_of_mediasections());
 
   std::string parsed_sdp = Serialize(parsed_jsep_desc.get());
@@ -225,7 +225,8 @@ TEST_F(JsepSessionDescriptionTest, SerializeDeserializeWithCandidates) {
   std::string sdp_with_candidate = Serialize(jsep_desc_.get());
   EXPECT_NE(sdp, sdp_with_candidate);
 
-  auto parsed_jsep_desc = DeSerialize(sdp_with_candidate);
+  std::unique_ptr<SessionDescriptionInterface> parsed_jsep_desc(
+      DeSerialize(sdp_with_candidate));
   std::string parsed_sdp_with_candidate = Serialize(parsed_jsep_desc.get());
 
   EXPECT_EQ(sdp_with_candidate, parsed_sdp_with_candidate);
@@ -380,8 +381,8 @@ TEST_F(JsepSessionDescriptionTest, RemoveCandidateAndSetConnectionAddress) {
   JsepIceCandidate jice3("audio", 0, candidate3);
 
   size_t audio_index = 0;
-  auto media_desc =
-      jsep_desc_->description()->contents()[audio_index].media_description();
+  auto media_desc = static_cast<cricket::MediaContentDescription*>(
+      jsep_desc_->description()->contents()[audio_index].description);
 
   ASSERT_TRUE(jsep_desc_->AddCandidate(&jice1));
   ASSERT_TRUE(jsep_desc_->AddCandidate(&jice2));
@@ -404,20 +405,3 @@ TEST_F(JsepSessionDescriptionTest, RemoveCandidateAndSetConnectionAddress) {
   ASSERT_TRUE(jsep_desc_->RemoveCandidates(candidates));
   EXPECT_EQ("0.0.0.0:9", media_desc->connection_address().ToString());
 }
-
-class EnumerateAllSdpTypesTest : public ::testing::Test,
-                                 public ::testing::WithParamInterface<SdpType> {
-};
-
-TEST_P(EnumerateAllSdpTypesTest, TestIdentity) {
-  SdpType type = GetParam();
-
-  const char* str = webrtc::SdpTypeToString(type);
-  EXPECT_EQ(type, webrtc::SdpTypeFromString(str));
-}
-
-INSTANTIATE_TEST_CASE_P(JsepSessionDescriptionTest,
-                        EnumerateAllSdpTypesTest,
-                        Values(SdpType::kOffer,
-                               SdpType::kPrAnswer,
-                               SdpType::kAnswer));

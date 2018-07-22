@@ -32,12 +32,13 @@ int64_t GetNextCallbackTime(Module* module, int64_t time_now) {
   }
   return time_now + interval;
 }
-}  // namespace
+}
 
 ProcessThread::~ProcessThread() {}
 
 // static
-std::unique_ptr<ProcessThread> ProcessThread::Create(const char* thread_name) {
+std::unique_ptr<ProcessThread> ProcessThread::Create(
+    const char* thread_name) {
   return std::unique_ptr<ProcessThread>(new ProcessThreadImpl(thread_name));
 }
 
@@ -75,7 +76,7 @@ void ProcessThreadImpl::Start() {
 
 void ProcessThreadImpl::Stop() {
   RTC_DCHECK(thread_checker_.CalledOnValidThread());
-  if (!thread_.get())
+  if(!thread_.get())
     return;
 
   {
@@ -154,8 +155,9 @@ void ProcessThreadImpl::DeRegisterModule(Module* module) {
 
   {
     rtc::CritScope lock(&lock_);
-    modules_.remove_if(
-        [&module](const ModuleCallback& m) { return m.module == module; });
+    modules_.remove_if([&module](const ModuleCallback& m) {
+        return m.module == module;
+      });
   }
 
   // Notify the module that it's been detached.

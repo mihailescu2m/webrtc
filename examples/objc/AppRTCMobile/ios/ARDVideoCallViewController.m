@@ -18,6 +18,7 @@
 #import "ARDFileCaptureController.h"
 #import "ARDSettingsModel.h"
 #import "ARDVideoCallView.h"
+#import "WebRTC/RTCAVFoundationVideoSource.h"
 #import "WebRTC/RTCDispatcher.h"
 #import "WebRTC/RTCLogging.h"
 #import "WebRTC/RTCMediaConstraints.h"
@@ -124,11 +125,7 @@
 - (void)appClient:(ARDAppClient *)client
     didReceiveRemoteVideoTrack:(RTCVideoTrack *)remoteVideoTrack {
   self.remoteVideoTrack = remoteVideoTrack;
-  __weak ARDVideoCallViewController *weakSelf = self;
-  dispatch_async(dispatch_get_main_queue(), ^{
-    ARDVideoCallViewController *strongSelf = weakSelf;
-    strongSelf.videoCallView.statusLabel.hidden = YES;
-  });
+  _videoCallView.statusLabel.hidden = YES;
 }
 
 - (void)appClient:(ARDAppClient *)client

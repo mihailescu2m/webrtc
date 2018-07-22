@@ -14,15 +14,14 @@
 
 namespace webrtc {
 
-class RemoteBitrateEstimatorAbsSendTimeTest
-    : public RemoteBitrateEstimatorTest {
+class RemoteBitrateEstimatorAbsSendTimeTest :
+    public RemoteBitrateEstimatorTest {
  public:
   RemoteBitrateEstimatorAbsSendTimeTest() {}
   virtual void SetUp() {
     bitrate_estimator_.reset(new RemoteBitrateEstimatorAbsSendTime(
         bitrate_observer_.get(), &clock_));
   }
-
  protected:
   RTC_DISALLOW_COPY_AND_ASSIGN(RemoteBitrateEstimatorAbsSendTimeTest);
 };

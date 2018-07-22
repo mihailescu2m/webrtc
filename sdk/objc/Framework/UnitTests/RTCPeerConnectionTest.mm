@@ -40,8 +40,8 @@
   config.tcpCandidatePolicy = RTCTcpCandidatePolicyDisabled;
   config.candidateNetworkPolicy = RTCCandidateNetworkPolicyLowCost;
   const int maxPackets = 60;
-  const int timeout = 1500;
-  const int interval = 2000;
+  const int timeout = 1;
+  const int interval = 2;
   config.audioJitterBufferMaxPackets = maxPackets;
   config.audioJitterBufferFastAccelerate = YES;
   config.iceConnectionReceivingTimeout = timeout;
@@ -49,7 +49,6 @@
   config.continualGatheringPolicy =
       RTCContinualGatheringPolicyGatherContinually;
   config.shouldPruneTurnPorts = YES;
-  config.activeResetSrtpParams = YES;
 
   RTCMediaConstraints *contraints = [[RTCMediaConstraints alloc] initWithMandatoryConstraints:@{}
       optionalConstraints:nil];
@@ -88,7 +87,6 @@
             newConfig.iceBackupCandidatePairPingInterval);
   EXPECT_EQ(config.continualGatheringPolicy, newConfig.continualGatheringPolicy);
   EXPECT_EQ(config.shouldPruneTurnPorts, newConfig.shouldPruneTurnPorts);
-  EXPECT_EQ(config.activeResetSrtpParams, newConfig.activeResetSrtpParams);
 }
 
 @end

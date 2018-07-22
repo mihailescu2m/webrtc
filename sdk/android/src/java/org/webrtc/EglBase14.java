@@ -19,9 +19,7 @@ import android.opengl.EGLDisplay;
 import android.opengl.EGLExt;
 import android.opengl.EGLSurface;
 import android.os.Build;
-import javax.annotation.Nullable;
 import android.view.Surface;
-import org.webrtc.EglBase;
 
 /**
  * Holds EGL state and utility methods for handling an EGL14 EGLContext, an EGLDisplay,
@@ -29,12 +27,12 @@ import org.webrtc.EglBase;
  */
 @SuppressWarnings("ReferenceEquality") // We want to compare to EGL14 constants.
 @TargetApi(18)
-class EglBase14 implements EglBase {
+class EglBase14 extends EglBase {
   private static final String TAG = "EglBase14";
   private static final int EGLExt_SDK_VERSION = android.os.Build.VERSION_CODES.JELLY_BEAN_MR2;
   private static final int CURRENT_SDK_VERSION = android.os.Build.VERSION.SDK_INT;
   private EGLContext eglContext;
-  @Nullable private EGLConfig eglConfig;
+  private EGLConfig eglConfig;
   private EGLDisplay eglDisplay;
   private EGLSurface eglSurface = EGL14.EGL_NO_SURFACE;
 
@@ -258,7 +256,7 @@ class EglBase14 implements EglBase {
 
   // Return an EGLConfig, or die trying.
   private static EGLContext createEglContext(
-      @Nullable EglBase14.Context sharedContext, EGLDisplay eglDisplay, EGLConfig eglConfig) {
+      EglBase14.Context sharedContext, EGLDisplay eglDisplay, EGLConfig eglConfig) {
     if (sharedContext != null && sharedContext.egl14Context == EGL14.EGL_NO_CONTEXT) {
       throw new RuntimeException("Invalid sharedContext");
     }

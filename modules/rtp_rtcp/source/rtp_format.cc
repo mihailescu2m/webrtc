@@ -18,45 +18,45 @@
 #include "modules/rtp_rtcp/source/rtp_format_vp9.h"
 
 namespace webrtc {
-RtpPacketizer* RtpPacketizer::Create(VideoCodecType type,
+RtpPacketizer* RtpPacketizer::Create(RtpVideoCodecTypes type,
                                      size_t max_payload_len,
                                      size_t last_packet_reduction_len,
-                                     const RTPVideoHeader* rtp_video_header,
+                                     const RTPVideoTypeHeader* rtp_type_header,
                                      FrameType frame_type) {
   switch (type) {
-    case kVideoCodecH264:
-      RTC_CHECK(rtp_video_header);
+    case kRtpVideoH264:
+      RTC_CHECK(rtp_type_header);
       return new RtpPacketizerH264(max_payload_len, last_packet_reduction_len,
-                                   rtp_video_header->h264().packetization_mode);
-    case kVideoCodecVP8:
-      RTC_CHECK(rtp_video_header);
-      return new RtpPacketizerVp8(rtp_video_header->vp8(), max_payload_len,
+                                   rtp_type_header->H264.packetization_mode);
+    case kRtpVideoVp8:
+      RTC_CHECK(rtp_type_header);
+      return new RtpPacketizerVp8(rtp_type_header->VP8, max_payload_len,
                                   last_packet_reduction_len);
-    case kVideoCodecVP9:
-      RTC_CHECK(rtp_video_header);
-      return new RtpPacketizerVp9(rtp_video_header->vp9(), max_payload_len,
+    case kRtpVideoVp9:
+      RTC_CHECK(rtp_type_header);
+      return new RtpPacketizerVp9(rtp_type_header->VP9, max_payload_len,
                                   last_packet_reduction_len);
-    case kVideoCodecGeneric:
+    case kRtpVideoGeneric:
       return new RtpPacketizerGeneric(frame_type, max_payload_len,
                                       last_packet_reduction_len);
-    default:
+    case kRtpVideoNone:
       RTC_NOTREACHED();
   }
   return nullptr;
 }
 
-RtpDepacketizer* RtpDepacketizer::Create(VideoCodecType type) {
+RtpDepacketizer* RtpDepacketizer::Create(RtpVideoCodecTypes type) {
   switch (type) {
-    case kVideoCodecH264:
+    case kRtpVideoH264:
       return new RtpDepacketizerH264();
-    case kVideoCodecVP8:
+    case kRtpVideoVp8:
       return new RtpDepacketizerVp8();
-    case kVideoCodecVP9:
+    case kRtpVideoVp9:
       return new RtpDepacketizerVp9();
-    case kVideoCodecGeneric:
+    case kRtpVideoGeneric:
       return new RtpDepacketizerGeneric();
-    default:
-      RTC_NOTREACHED();
+    case kRtpVideoNone:
+      assert(false);
   }
   return nullptr;
 }

@@ -42,7 +42,8 @@ typedef enum {
 
 @property(nonatomic, readonly) NSArray<RTCIceCandidate *> *candidates;
 
-- (instancetype)initWithRemovedCandidates:(NSArray<RTCIceCandidate *> *)candidates;
+- (instancetype)initWithRemovedCandidates:
+    (NSArray<RTCIceCandidate *> *)candidates;
 
 @end
 

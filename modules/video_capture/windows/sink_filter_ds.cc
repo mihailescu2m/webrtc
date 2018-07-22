@@ -10,13 +10,14 @@
 
 #include "modules/video_capture/windows/sink_filter_ds.h"
 
+#include <ios>  // std::hex
+
 #include "modules/video_capture/windows/help_functions_ds.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/platform_thread.h"
-#include "rtc_base/stringutils.h"
 
-#include <dvdmedia.h>  // VIDEOINFOHEADER2
+#include <Dvdmedia.h>  // VIDEOINFOHEADER2
 #include <initguid.h>
 
 #define DELETE_RESET(p) \
@@ -147,7 +148,7 @@ CaptureInputPin::GetMediaType(IN int iPosition, OUT CMediaType* pmt) {
   RTC_LOG(LS_INFO) << "GetMediaType position " << iPosition << ", width "
                    << _requestedCapability.width << ", height "
                    << _requestedCapability.height << ", biCompression 0x"
-                   << rtc::ToHex(pvi->bmiHeader.biCompression);
+                   << std::hex << pvi->bmiHeader.biCompression;
   return NOERROR;
 }
 
@@ -187,8 +188,8 @@ CaptureInputPin::CheckMediaType(IN const CMediaType* pMediaType) {
 
     RTC_LOG(LS_INFO) << "CheckMediaType width:" << pvi->bmiHeader.biWidth
                      << " height:" << pvi->bmiHeader.biHeight
-                     << " Compression:0x"
-                     << rtc::ToHex(pvi->bmiHeader.biCompression);
+                     << " Compression:0x" << std::hex
+                     << pvi->bmiHeader.biCompression;
 
     if (*SubType == MEDIASUBTYPE_MJPG &&
         pvi->bmiHeader.biCompression == MAKEFOURCC('M', 'J', 'P', 'G')) {
@@ -232,8 +233,8 @@ CaptureInputPin::CheckMediaType(IN const CMediaType* pMediaType) {
 
     RTC_LOG(LS_INFO) << "CheckMediaType width:" << pvi->bmiHeader.biWidth
                      << " height:" << pvi->bmiHeader.biHeight
-                     << " Compression:0x"
-                     << rtc::ToHex(pvi->bmiHeader.biCompression);
+                     << " Compression:0x" << std::hex
+                     << pvi->bmiHeader.biCompression;
 
     _resultingCapability.width = pvi->bmiHeader.biWidth;
 
@@ -326,7 +327,7 @@ HRESULT CaptureInputPin::SetMatchingMediaType(
   return S_OK;
 }
 //  ----------------------------------------------------------------------------
-CaptureSinkFilter::CaptureSinkFilter(const IN TCHAR* tszName,
+CaptureSinkFilter::CaptureSinkFilter(IN TCHAR* tszName,
                                      IN LPUNKNOWN punk,
                                      OUT HRESULT* phr,
                                      VideoCaptureExternal& captureObserver)
@@ -334,9 +335,8 @@ CaptureSinkFilter::CaptureSinkFilter(const IN TCHAR* tszName,
       m_pInput(NULL),
       _captureObserver(captureObserver) {
   (*phr) = S_OK;
-  TCHAR inputPinName[] = L"VideoCaptureInputPin";
-  m_pInput = new CaptureInputPin(inputPinName, this, &m_crtFilter, phr,
-                                 L"VideoCapture");
+  m_pInput = new CaptureInputPin(NAME("VideoCaptureInputPin"), this,
+                                 &m_crtFilter, phr, L"VideoCapture");
   if (m_pInput == NULL || FAILED(*phr)) {
     (*phr) = FAILED(*phr) ? (*phr) : E_OUTOFMEMORY;
     goto cleanup;

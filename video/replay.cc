@@ -22,7 +22,6 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/flags.h"
 #include "rtc_base/string_to_number.h"
-#include "rtc_base/timeutils.h"
 #include "system_wrappers/include/clock.h"
 #include "system_wrappers/include/sleep.h"
 #include "test/call_test.h"
@@ -68,47 +67,20 @@ namespace flags {
 // TODO(pbos): Multiple receivers.
 
 // Flag for payload type.
-DEFINE_int(media_payload_type,
-           test::CallTest::kPayloadTypeVP8,
-           "Media payload type");
-static int MediaPayloadType() {
-  return static_cast<int>(FLAG_media_payload_type);
-}
+DEFINE_int(payload_type, test::CallTest::kPayloadTypeVP8, "Payload type");
+static int PayloadType() { return static_cast<int>(FLAG_payload_type); }
 
-// Flag for RED payload type.
-DEFINE_int(red_payload_type,
-           test::CallTest::kRedPayloadType,
-           "RED payload type");
-static int RedPayloadType() {
-  return static_cast<int>(FLAG_red_payload_type);
-}
-
-// Flag for ULPFEC payload type.
-DEFINE_int(ulpfec_payload_type,
-           test::CallTest::kUlpfecPayloadType,
-           "ULPFEC payload type");
-static int UlpfecPayloadType() {
-  return static_cast<int>(FLAG_ulpfec_payload_type);
-}
-
-DEFINE_int(media_payload_type_rtx,
+DEFINE_int(payload_type_rtx,
            test::CallTest::kSendRtxPayloadType,
-           "Media over RTX payload type");
-static int MediaPayloadTypeRtx() {
-  return static_cast<int>(FLAG_media_payload_type_rtx);
-}
-
-DEFINE_int(red_payload_type_rtx,
-           test::CallTest::kRtxRedPayloadType,
-           "RED over RTX payload type");
-static int RedPayloadTypeRtx() {
-  return static_cast<int>(FLAG_red_payload_type_rtx);
+           "RTX payload type");
+static int PayloadTypeRtx() {
+  return static_cast<int>(FLAG_payload_type_rtx);
 }
 
 // Flag for SSRC.
 const std::string& DefaultSsrc() {
-  static const std::string ssrc =
-      std::to_string(test::CallTest::kVideoSendSsrcs[0]);
+  static const std::string ssrc = std::to_string(
+      test::CallTest::kVideoSendSsrcs[0]);
   return ssrc;
 }
 DEFINE_string(ssrc, DefaultSsrc().c_str(), "Incoming SSRC");
@@ -117,8 +89,8 @@ static uint32_t Ssrc() {
 }
 
 const std::string& DefaultSsrcRtx() {
-  static const std::string ssrc_rtx =
-      std::to_string(test::CallTest::kSendRtxSsrcs[0]);
+  static const std::string ssrc_rtx = std::to_string(
+      test::CallTest::kSendRtxSsrcs[0]);
   return ssrc_rtx;
 }
 DEFINE_string(ssrc_rtx, DefaultSsrcRtx().c_str(), "Incoming RTX SSRC");
@@ -126,11 +98,21 @@ static uint32_t SsrcRtx() {
   return rtc::StringToNumber<uint32_t>(FLAG_ssrc_rtx).value();
 }
 
+// Flag for RED payload type.
+DEFINE_int(red_payload_type, -1, "RED payload type");
+static int RedPayloadType() {
+  return static_cast<int>(FLAG_red_payload_type);
+}
+
+// Flag for ULPFEC payload type.
+DEFINE_int(fec_payload_type, -1, "ULPFEC payload type");
+static int FecPayloadType() {
+  return static_cast<int>(FLAG_fec_payload_type);
+}
+
 // Flag for abs-send-time id.
 DEFINE_int(abs_send_time_id, -1, "RTP extension ID for abs-send-time");
-static int AbsSendTimeId() {
-  return static_cast<int>(FLAG_abs_send_time_id);
-}
+static int AbsSendTimeId() { return static_cast<int>(FLAG_abs_send_time_id); }
 
 // Flag for transmission-offset id.
 DEFINE_int(transmission_offset_id,
@@ -159,9 +141,7 @@ static std::string DecoderBitstreamFilename() {
 
 // Flag for video codec.
 DEFINE_string(codec, "VP8", "Video codec");
-static std::string Codec() {
-  return static_cast<std::string>(FLAG_codec);
-}
+static std::string Codec() { return static_cast<std::string>(FLAG_codec); }
 
 DEFINE_bool(help, false, "Print this message.");
 }  // namespace flags
@@ -201,7 +181,7 @@ class FileRenderPassthrough : public rtc::VideoSinkInterface<VideoFrame> {
   size_t count_;
 };
 
-class DecoderBitstreamFileWriter : public test::FakeDecoder {
+class DecoderBitstreamFileWriter : public EncodedFrameObserver {
  public:
   explicit DecoderBitstreamFileWriter(const char* filename)
       : file_(fopen(filename, "wb")) {
@@ -209,16 +189,8 @@ class DecoderBitstreamFileWriter : public test::FakeDecoder {
   }
   ~DecoderBitstreamFileWriter() { fclose(file_); }
 
-  int32_t Decode(const EncodedImage& encoded_frame,
-                      bool /* missing_frames */,
-                      const CodecSpecificInfo* /* codec_specific_info */,
-                      int64_t /* render_time_ms */) override {
-    if (fwrite(encoded_frame._buffer, 1, encoded_frame._length, file_)
-        < encoded_frame._length) {
-      RTC_LOG_ERR(LS_ERROR) << "fwrite of encoded frame failed.";
-      return WEBRTC_VIDEO_CODEC_ERROR;
-    }
-    return WEBRTC_VIDEO_CODEC_OK;
+  virtual void EncodedFrameCallback(const EncodedFrame& encoded_frame) {
+    fwrite(encoded_frame.data_, 1, encoded_frame.length_, file_);
   }
 
  private:
@@ -241,12 +213,9 @@ void RtpReplay() {
   receive_config.rtp.remote_ssrc = flags::Ssrc();
   receive_config.rtp.local_ssrc = kReceiverLocalSsrc;
   receive_config.rtp.rtx_ssrc = flags::SsrcRtx();
-  receive_config.rtp
-      .rtx_associated_payload_types[flags::MediaPayloadTypeRtx()] =
-      flags::MediaPayloadType();
-  receive_config.rtp.rtx_associated_payload_types[flags::RedPayloadTypeRtx()] =
-      flags::RedPayloadType();
-  receive_config.rtp.ulpfec_payload_type = flags::UlpfecPayloadType();
+  receive_config.rtp.rtx_associated_payload_types[flags::PayloadTypeRtx()] =
+      flags::PayloadType();
+  receive_config.rtp.ulpfec_payload_type = flags::FecPayloadType();
   receive_config.rtp.red_payload_type = flags::RedPayloadType();
   receive_config.rtp.nack.rtp_history_ms = 1000;
   if (flags::TransmissionOffsetId() != -1) {
@@ -259,15 +228,22 @@ void RtpReplay() {
   }
   receive_config.renderer = &file_passthrough;
 
+  VideoSendStream::Config::EncoderSettings encoder_settings;
+  encoder_settings.payload_name = flags::Codec();
+  encoder_settings.payload_type = flags::PayloadType();
   VideoReceiveStream::Decoder decoder;
-  decoder =
-      test::CreateMatchingDecoder(flags::MediaPayloadType(), flags::Codec());
+  std::unique_ptr<DecoderBitstreamFileWriter> bitstream_writer;
   if (!flags::DecoderBitstreamFilename().empty()) {
-    // Replace decoder with file writer if we're writing the bitstream to a file
+    bitstream_writer.reset(new DecoderBitstreamFileWriter(
+        flags::DecoderBitstreamFilename().c_str()));
+    receive_config.pre_decode_callback = bitstream_writer.get();
+  }
+  decoder = test::CreateMatchingDecoder(encoder_settings);
+  if (!flags::DecoderBitstreamFilename().empty()) {
+    // Replace with a null decoder if we're writing the bitstream to a file
     // instead.
     delete decoder.decoder;
-    decoder.decoder = new DecoderBitstreamFileWriter(
-        flags::DecoderBitstreamFilename().c_str());
+    decoder.decoder = new test::FakeNullDecoder();
   }
   receive_config.decoders.push_back(decoder);
 
@@ -295,26 +271,16 @@ void RtpReplay() {
   }
   receive_stream->Start();
 
-  int64_t replay_start_ms = -1;
+  uint32_t last_time_ms = 0;
   int num_packets = 0;
   std::map<uint32_t, int> unknown_packets;
   while (true) {
-    int64_t now_ms = rtc::TimeMillis();
-    if (replay_start_ms == -1)
-      replay_start_ms = now_ms;
-
     test::RtpPacket packet;
     if (!rtp_reader->NextPacket(&packet))
       break;
-
-    int64_t deliver_in_ms = replay_start_ms + packet.time_ms - now_ms;
-    if (deliver_in_ms > 0)
-      SleepMs(deliver_in_ms);
-
     ++num_packets;
     switch (call->Receiver()->DeliverPacket(
-        webrtc::MediaType::VIDEO,
-        rtc::CopyOnWriteBuffer(packet.data, packet.length), PacketTime())) {
+        webrtc::MediaType::VIDEO, packet.data, packet.length, PacketTime())) {
       case PacketReceiver::DELIVERY_OK:
         break;
       case PacketReceiver::DELIVERY_UNKNOWN_SSRC: {
@@ -337,13 +303,18 @@ void RtpReplay() {
         break;
       }
     }
+    if (last_time_ms != 0 && last_time_ms != packet.time_ms) {
+      SleepMs(packet.time_ms - last_time_ms);
+    }
+    last_time_ms = packet.time_ms;
   }
   fprintf(stderr, "num_packets: %d\n", num_packets);
 
   for (std::map<uint32_t, int>::const_iterator it = unknown_packets.begin();
-       it != unknown_packets.end(); ++it) {
-    fprintf(stderr, "Packets for unknown ssrc '%u': %d\n", it->first,
-            it->second);
+       it != unknown_packets.end();
+       ++it) {
+    fprintf(
+        stderr, "Packets for unknown ssrc '%u': %d\n", it->first, it->second);
   }
 
   call->DestroyVideoReceiveStream(receive_stream);
@@ -362,18 +333,15 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  RTC_CHECK(ValidatePayloadType(webrtc::flags::FLAG_media_payload_type));
-  RTC_CHECK(ValidatePayloadType(webrtc::flags::FLAG_media_payload_type_rtx));
-  RTC_CHECK(ValidateOptionalPayloadType(webrtc::flags::FLAG_red_payload_type));
-  RTC_CHECK(
-      ValidateOptionalPayloadType(webrtc::flags::FLAG_red_payload_type_rtx));
-  RTC_CHECK(
-      ValidateOptionalPayloadType(webrtc::flags::FLAG_ulpfec_payload_type));
+  RTC_CHECK(ValidatePayloadType(webrtc::flags::FLAG_payload_type));
+  RTC_CHECK(ValidatePayloadType(webrtc::flags::FLAG_payload_type_rtx));
   RTC_CHECK(ValidateSsrc(webrtc::flags::FLAG_ssrc));
   RTC_CHECK(ValidateSsrc(webrtc::flags::FLAG_ssrc_rtx));
+  RTC_CHECK(ValidateOptionalPayloadType(webrtc::flags::FLAG_red_payload_type));
+  RTC_CHECK(ValidateOptionalPayloadType(webrtc::flags::FLAG_fec_payload_type));
   RTC_CHECK(ValidateRtpHeaderExtensionId(webrtc::flags::FLAG_abs_send_time_id));
-  RTC_CHECK(
-      ValidateRtpHeaderExtensionId(webrtc::flags::FLAG_transmission_offset_id));
+  RTC_CHECK(ValidateRtpHeaderExtensionId(
+      webrtc::flags::FLAG_transmission_offset_id));
   RTC_CHECK(ValidateInputFilenameNotEmpty(webrtc::flags::FLAG_input_file));
 
   webrtc::test::RunTest(webrtc::RtpReplay);

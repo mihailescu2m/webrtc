@@ -53,6 +53,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithNativeSdpVideoFormat:(webrtc::SdpVideoFormat)format;
 - (webrtc::SdpVideoFormat)nativeSdpVideoFormat;
 
+/* TODO(andersc): These are deprecated, remove when no longer in use. */
+- (instancetype)initWithNativeVideoCodec:(cricket::VideoCodec)videoCodec;
+- (cricket::VideoCodec)nativeVideoCodec;
+
 @end
 
 NS_ASSUME_NONNULL_END

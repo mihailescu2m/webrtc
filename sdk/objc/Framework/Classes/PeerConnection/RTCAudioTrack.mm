@@ -31,19 +31,18 @@
   std::string nativeId = [NSString stdStringForString:trackId];
   rtc::scoped_refptr<webrtc::AudioTrackInterface> track =
       factory.nativeFactory->CreateAudioTrack(nativeId, source.nativeAudioSource);
-  if (self = [self initWithFactory:factory nativeTrack:track type:RTCMediaStreamTrackTypeAudio]) {
+  if ([self initWithNativeTrack:track type:RTCMediaStreamTrackTypeAudio]) {
     _source = source;
   }
   return self;
 }
 
-- (instancetype)initWithFactory:(RTCPeerConnectionFactory *)factory
-                    nativeTrack:(rtc::scoped_refptr<webrtc::MediaStreamTrackInterface>)nativeTrack
-                           type:(RTCMediaStreamTrackType)type {
-  NSParameterAssert(factory);
+- (instancetype)initWithNativeTrack:
+    (rtc::scoped_refptr<webrtc::MediaStreamTrackInterface>)nativeTrack
+                               type:(RTCMediaStreamTrackType)type {
   NSParameterAssert(nativeTrack);
   NSParameterAssert(type == RTCMediaStreamTrackTypeAudio);
-  return [super initWithFactory:factory nativeTrack:nativeTrack type:type];
+  return [super initWithNativeTrack:nativeTrack type:type];
 }
 
 
@@ -52,8 +51,7 @@
     rtc::scoped_refptr<webrtc::AudioSourceInterface> source =
         self.nativeAudioTrack->GetSource();
     if (source) {
-      _source =
-          [[RTCAudioSource alloc] initWithFactory:self.factory nativeAudioSource:source.get()];
+      _source = [[RTCAudioSource alloc] initWithNativeAudioSource:source.get()];
     }
   }
   return _source;

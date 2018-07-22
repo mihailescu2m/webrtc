@@ -23,24 +23,24 @@ namespace webrtc {
 
 class MediaStream : public Notifier<MediaStreamInterface> {
  public:
-  static rtc::scoped_refptr<MediaStream> Create(const std::string& id);
+  static rtc::scoped_refptr<MediaStream> Create(const std::string& label);
 
-  std::string id() const override { return id_; }
+  std::string label() const override { return label_; }
 
   bool AddTrack(AudioTrackInterface* track) override;
   bool AddTrack(VideoTrackInterface* track) override;
   bool RemoveTrack(AudioTrackInterface* track) override;
   bool RemoveTrack(VideoTrackInterface* track) override;
-  rtc::scoped_refptr<AudioTrackInterface> FindAudioTrack(
-      const std::string& track_id) override;
-  rtc::scoped_refptr<VideoTrackInterface> FindVideoTrack(
-      const std::string& track_id) override;
+  rtc::scoped_refptr<AudioTrackInterface>
+      FindAudioTrack(const std::string& track_id) override;
+  rtc::scoped_refptr<VideoTrackInterface>
+      FindVideoTrack(const std::string& track_id) override;
 
   AudioTrackVector GetAudioTracks() override { return audio_tracks_; }
   VideoTrackVector GetVideoTracks() override { return video_tracks_; }
 
  protected:
-  explicit MediaStream(const std::string& id);
+  explicit MediaStream(const std::string& label);
 
  private:
   template <typename TrackVector, typename Track>
@@ -48,7 +48,7 @@ class MediaStream : public Notifier<MediaStreamInterface> {
   template <typename TrackVector>
   bool RemoveTrack(TrackVector* Tracks, MediaStreamTrackInterface* track);
 
-  std::string id_;
+  std::string label_;
   AudioTrackVector audio_tracks_;
   VideoTrackVector video_tracks_;
 };

@@ -19,9 +19,11 @@
 namespace webrtc {
 namespace acm2 {
 
-ACMResampler::ACMResampler() {}
+ACMResampler::ACMResampler() {
+}
 
-ACMResampler::~ACMResampler() {}
+ACMResampler::~ACMResampler() {
+}
 
 int ACMResampler::Resample10Msec(const int16_t* in_audio,
                                  int in_freq_hz,

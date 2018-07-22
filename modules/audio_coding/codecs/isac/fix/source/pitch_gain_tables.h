@@ -11,8 +11,7 @@
 /*
  * pitch_gain_tables.h
  *
- * This file contains tables for the pitch filter side-info in the entropy
- * coder.
+ * This file contains tables for the pitch filter side-info in the entropy coder.
  *
  */
 
@@ -21,8 +20,7 @@
 
 #include "typedefs.h"  // NOLINT(build/include)
 
-/********************* Pitch Filter Gain Coefficient Tables
- * ************************/
+/********************* Pitch Filter Gain Coefficient Tables ************************/
 /* cdf for quantized pitch filter gains */
 extern const uint16_t WebRtcIsacfix_kPitchGainCdf[255];
 

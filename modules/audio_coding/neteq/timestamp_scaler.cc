@@ -70,6 +70,7 @@ uint32_t TimestampScaler::ToInternal(uint32_t external_timestamp,
   }
 }
 
+
 uint32_t TimestampScaler::ToExternal(uint32_t internal_timestamp) const {
   if (!first_packet_received_ || (numerator_ == denominator_)) {
     // Not initialized, or scale factor is 1.

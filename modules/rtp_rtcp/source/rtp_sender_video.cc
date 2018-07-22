@@ -18,7 +18,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/memory/memory.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/byte_io.h"
 #include "modules/rtp_rtcp/source/rtp_format_video_generic.h"
@@ -28,6 +27,7 @@
 #include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
+#include "rtc_base/ptr_util.h"
 #include "rtc_base/trace_event.h"
 
 namespace webrtc {
@@ -54,7 +54,7 @@ RTPSenderVideo::RTPSenderVideo(Clock* clock,
                                FlexfecSender* flexfec_sender)
     : rtp_sender_(rtp_sender),
       clock_(clock),
-      video_type_(kVideoCodecGeneric),
+      video_type_(kRtpVideoGeneric),
       retransmission_settings_(kRetransmitBaseLayer |
                                kConditionallyRetransmitHigherLayers),
       last_rotation_(kVideoRotation_0),
@@ -68,11 +68,11 @@ RTPSenderVideo::RTPSenderVideo(Clock* clock,
 
 RTPSenderVideo::~RTPSenderVideo() {}
 
-void RTPSenderVideo::SetVideoCodecType(enum VideoCodecType video_type) {
+void RTPSenderVideo::SetVideoCodecType(RtpVideoCodecTypes video_type) {
   video_type_ = video_type;
 }
 
-VideoCodecType RTPSenderVideo::VideoCodecType() const {
+RtpVideoCodecTypes RTPSenderVideo::VideoCodecType() const {
   return video_type_;
 }
 
@@ -80,19 +80,17 @@ VideoCodecType RTPSenderVideo::VideoCodecType() const {
 RtpUtility::Payload* RTPSenderVideo::CreateVideoPayload(
     const char payload_name[RTP_PAYLOAD_NAME_SIZE],
     int8_t payload_type) {
-  enum VideoCodecType video_type = kVideoCodecGeneric;
+  RtpVideoCodecTypes video_type = kRtpVideoGeneric;
   if (RtpUtility::StringCompare(payload_name, "VP8", 3)) {
-    video_type = kVideoCodecVP8;
+    video_type = kRtpVideoVp8;
   } else if (RtpUtility::StringCompare(payload_name, "VP9", 3)) {
-    video_type = kVideoCodecVP9;
+    video_type = kRtpVideoVp9;
   } else if (RtpUtility::StringCompare(payload_name, "H264", 4)) {
-    video_type = kVideoCodecH264;
+    video_type = kRtpVideoH264;
   } else if (RtpUtility::StringCompare(payload_name, "I420", 4)) {
-    video_type = kVideoCodecGeneric;
-  } else if (RtpUtility::StringCompare(payload_name, "stereo", 6)) {
-    video_type = kVideoCodecGeneric;
+    video_type = kRtpVideoGeneric;
   } else {
-    video_type = kVideoCodecGeneric;
+    video_type = kRtpVideoGeneric;
   }
   VideoPayload vp;
   vp.videoCodecType = video_type;
@@ -104,6 +102,7 @@ void RTPSenderVideo::SendVideoPacket(std::unique_ptr<RtpPacketToSend> packet,
   // Remember some values about the packet before sending it away.
   size_t packet_size = packet->size();
   uint16_t seq_num = packet->SequenceNumber();
+  uint32_t rtp_timestamp = packet->Timestamp();
   if (!rtp_sender_->SendToNetwork(std::move(packet), storage,
                                   RtpPacketSender::kLowPriority)) {
     RTC_LOG(LS_WARNING) << "Failed to send video packet " << seq_num;
@@ -111,12 +110,16 @@ void RTPSenderVideo::SendVideoPacket(std::unique_ptr<RtpPacketToSend> packet,
   }
   rtc::CritScope cs(&stats_crit_);
   video_bitrate_.Update(packet_size, clock_->TimeInMilliseconds());
+  TRACE_EVENT_INSTANT2(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"),
+                       "Video::PacketNormal", "timestamp", rtp_timestamp,
+                       "seqnum", seq_num);
 }
 
 void RTPSenderVideo::SendVideoPacketAsRedMaybeWithUlpfec(
     std::unique_ptr<RtpPacketToSend> media_packet,
     StorageType media_packet_storage,
     bool protect_media_packet) {
+  uint32_t rtp_timestamp = media_packet->Timestamp();
   uint16_t media_seq_num = media_packet->SequenceNumber();
 
   std::unique_ptr<RtpPacketToSend> red_packet(
@@ -140,7 +143,8 @@ void RTPSenderVideo::SendVideoPacketAsRedMaybeWithUlpfec(
         uint16_t first_fec_sequence_number =
             rtp_sender_->AllocateSequenceNumber(num_fec_packets);
         fec_packets = ulpfec_generator_.GetUlpfecPacketsAsRed(
-            red_payload_type_, ulpfec_payload_type_, first_fec_sequence_number);
+            red_payload_type_, ulpfec_payload_type_, first_fec_sequence_number,
+            media_packet->headers_size());
         RTC_DCHECK_EQ(num_fec_packets, fec_packets.size());
         if (retransmission_settings_ & kRetransmitFECPackets)
           fec_storage = kAllowRetransmission;
@@ -153,6 +157,9 @@ void RTPSenderVideo::SendVideoPacketAsRedMaybeWithUlpfec(
                                  RtpPacketSender::kLowPriority)) {
     rtc::CritScope cs(&stats_crit_);
     video_bitrate_.Update(red_packet_size, clock_->TimeInMilliseconds());
+    TRACE_EVENT_INSTANT2(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"),
+                         "Video::PacketRed", "timestamp", rtp_timestamp,
+                         "seqnum", media_seq_num);
   } else {
     RTC_LOG(LS_WARNING) << "Failed to send RED packet " << media_seq_num;
   }
@@ -168,6 +175,9 @@ void RTPSenderVideo::SendVideoPacketAsRedMaybeWithUlpfec(
                                    RtpPacketSender::kLowPriority)) {
       rtc::CritScope cs(&stats_crit_);
       fec_bitrate_.Update(fec_packet->length(), clock_->TimeInMilliseconds());
+      TRACE_EVENT_INSTANT2(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"),
+                           "Video::PacketUlpfec", "timestamp", rtp_timestamp,
+                           "seqnum", fec_sequence_number);
     } else {
       RTC_LOG(LS_WARNING) << "Failed to send ULPFEC packet "
                           << fec_sequence_number;
@@ -191,11 +201,15 @@ void RTPSenderVideo::SendVideoPacketWithFlexfec(
         flexfec_sender_->GetFecPackets();
     for (auto& fec_packet : fec_packets) {
       size_t packet_length = fec_packet->size();
+      uint32_t timestamp = fec_packet->Timestamp();
       uint16_t seq_num = fec_packet->SequenceNumber();
       if (rtp_sender_->SendToNetwork(std::move(fec_packet), kDontRetransmit,
                                      RtpPacketSender::kLowPriority)) {
         rtc::CritScope cs(&stats_crit_);
         fec_bitrate_.Update(packet_length, clock_->TimeInMilliseconds());
+        TRACE_EVENT_INSTANT2(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"),
+                             "Video::PacketFlexfec", "timestamp", timestamp,
+                             "seqnum", seq_num);
       } else {
         RTC_LOG(LS_WARNING) << "Failed to send FlexFEC packet " << seq_num;
       }
@@ -218,7 +232,10 @@ void RTPSenderVideo::SetUlpfecConfig(int red_payload_type,
   ulpfec_payload_type_ = ulpfec_payload_type;
 
   // Must not enable ULPFEC without RED.
-  RTC_DCHECK(!(red_enabled() ^ ulpfec_enabled()));
+  // TODO(brandtr): We currently support enabling RED without ULPFEC. Change
+  // this when we have removed the RED/RTX send-side workaround, so that we
+  // ensure that RED and ULPFEC are only enabled together.
+  RTC_DCHECK(red_enabled() || !ulpfec_enabled());
 
   // Reset FEC parameters.
   delta_fec_params_ = FecProtectionParams{0, 1, kFecMaskRandom};
@@ -261,14 +278,14 @@ void RTPSenderVideo::SetFecParameters(const FecProtectionParams& delta_params,
   key_fec_params_ = key_params;
 }
 
-absl::optional<uint32_t> RTPSenderVideo::FlexfecSsrc() const {
+rtc::Optional<uint32_t> RTPSenderVideo::FlexfecSsrc() const {
   if (flexfec_sender_) {
     return flexfec_sender_->ssrc();
   }
-  return absl::nullopt;
+  return rtc::nullopt;
 }
 
-bool RTPSenderVideo::SendVideo(enum VideoCodecType video_type,
+bool RTPSenderVideo::SendVideo(RtpVideoCodecTypes video_type,
                                FrameType frame_type,
                                int8_t payload_type,
                                uint32_t rtp_timestamp,
@@ -286,7 +303,7 @@ bool RTPSenderVideo::SendVideo(enum VideoCodecType video_type,
   rtp_header->SetPayloadType(payload_type);
   rtp_header->SetTimestamp(rtp_timestamp);
   rtp_header->set_capture_time_ms(capture_time_ms);
-  auto last_packet = absl::make_unique<RtpPacketToSend>(*rtp_header);
+  auto last_packet = rtc::MakeUnique<RtpPacketToSend>(*rtp_header);
 
   size_t fec_packet_overhead;
   bool red_enabled;
@@ -317,7 +334,7 @@ bool RTPSenderVideo::SendVideo(enum VideoCodecType video_type,
         last_packet->SetExtension<VideoContentTypeExtension>(
             video_header->content_type);
       }
-      if (video_header->video_timing.flags != VideoSendTiming::kInvalid) {
+      if (video_header->video_timing.flags != TimingFrameFlags::kInvalid) {
         last_packet->SetExtension<VideoTimingExtension>(
             video_header->video_timing);
       }
@@ -349,12 +366,13 @@ bool RTPSenderVideo::SendVideo(enum VideoCodecType video_type,
 
   std::unique_ptr<RtpPacketizer> packetizer(RtpPacketizer::Create(
       video_type, max_data_payload_length, last_packet_reduction_len,
-      video_header, frame_type));
+      video_header ? &(video_header->codecHeader) : nullptr, frame_type));
 
   const uint8_t temporal_id =
       video_header ? GetTemporalId(*video_header) : kNoTemporalIdx;
   StorageType storage = GetStorageType(temporal_id, retransmission_settings,
                                        expected_retransmission_time_ms);
+
   size_t num_packets =
       packetizer->SetPayloadData(payload_data, payload_size, fragmentation);
 
@@ -365,7 +383,7 @@ bool RTPSenderVideo::SendVideo(enum VideoCodecType video_type,
   for (size_t i = 0; i < num_packets; ++i) {
     bool last = (i + 1) == num_packets;
     auto packet = last ? std::move(last_packet)
-                       : absl::make_unique<RtpPacketToSend>(*rtp_header);
+                       : rtc::MakeUnique<RtpPacketToSend>(*rtp_header);
     if (!packetizer->NextPacket(packet.get()))
       return false;
     RTC_DCHECK_LE(packet->payload_size(),
@@ -468,10 +486,10 @@ StorageType RTPSenderVideo::GetStorageType(
 
 uint8_t RTPSenderVideo::GetTemporalId(const RTPVideoHeader& header) {
   switch (header.codec) {
-    case kVideoCodecVP8:
-      return header.vp8().temporalIdx;
-    case kVideoCodecVP9:
-      return header.vp9().temporal_idx;
+    case kRtpVideoVp8:
+      return header.codecHeader.VP8.temporalIdx;
+    case kRtpVideoVp9:
+      return header.codecHeader.VP9.temporal_idx;
     default:
       return kNoTemporalIdx;
   }
@@ -500,7 +518,7 @@ bool RTPSenderVideo::UpdateConditionalRetransmit(
       int64_t expected_next_frame_time = kUndefined;
       for (int i = temporal_id - 1; i >= 0; --i) {
         TemporalLayerStats* stats = &frame_stats_by_temporal_layer_[i];
-        absl::optional<uint32_t> rate = stats->frame_rate_fp1000s.Rate(now_ms);
+        rtc::Optional<uint32_t> rate = stats->frame_rate_fp1000s.Rate(now_ms);
         if (rate) {
           int64_t tl_next = stats->last_frame_time_ms + 1000000 / *rate;
           if (tl_next - now_ms > -expected_retransmission_time_ms &&

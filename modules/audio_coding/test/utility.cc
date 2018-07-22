@@ -23,7 +23,11 @@
 
 namespace webrtc {
 
-ACMTestTimer::ACMTestTimer() : _msec(0), _sec(0), _min(0), _hour(0) {
+ACMTestTimer::ACMTestTimer()
+    : _msec(0),
+      _sec(0),
+      _min(0),
+      _hour(0) {
   return;
 }
 
@@ -64,14 +68,12 @@ void ACMTestTimer::Tick1sec() {
 
 void ACMTestTimer::CurrentTimeHMS(char* currTime) {
   sprintf(currTime, "%4lu:%02u:%06.3f", _hour, _min,
-          (double)_sec + (double)_msec / 1000.);
+          (double) _sec + (double) _msec / 1000.);
   return;
 }
 
-void ACMTestTimer::CurrentTime(unsigned long& h,
-                               unsigned char& m,
-                               unsigned char& s,
-                               unsigned short& ms) {
+void ACMTestTimer::CurrentTime(unsigned long& h, unsigned char& m,
+                               unsigned char& s, unsigned short& ms) {
   h = _hour;
   m = _min;
   s = _sec;
@@ -99,8 +101,9 @@ void ACMTestTimer::Adjust() {
 }
 
 int16_t ChooseCodec(CodecInst& codecInst) {
+
   PrintCodecs();
-  // AudioCodingModule* tmpACM = AudioCodingModule::Create(0);
+  //AudioCodingModule* tmpACM = AudioCodingModule::Create(0);
   uint8_t noCodec = AudioCodingModule::NumberOfCodecs();
   int8_t codecID;
   bool outOfRange = false;
@@ -115,7 +118,7 @@ int16_t ChooseCodec(CodecInst& codecInst) {
     }
   } while (outOfRange);
 
-  CHECK_ERROR(AudioCodingModule::Codec((uint8_t)codecID, &codecInst));
+  CHECK_ERROR(AudioCodingModule::Codec((uint8_t )codecID, &codecInst));
   return 0;
 }
 
@@ -129,6 +132,7 @@ void PrintCodecs() {
     printf("%2d- %-18s %5d   %6d\n", codecCntr, codecInst.plname,
            codecInst.plfreq, codecInst.rate);
   }
+
 }
 
 namespace test {
@@ -188,7 +192,7 @@ void CircularBuffer::Update(const double newVal) {
   if (_calcVar) {
     // to calculate variance we have to update
     // the sum of squares
-    _sumSqr += (double)(newVal - oldVal) * (double)(newVal + oldVal);
+    _sumSqr += (double) (newVal - oldVal) * (double) (newVal + oldVal);
   }
 }
 
@@ -232,15 +236,17 @@ int16_t CircularBuffer::ArithMean(double& mean) {
   assert(_buffLen > 0);
 
   if (_buffIsFull) {
-    mean = _sum / (double)_buffLen;
+
+    mean = _sum / (double) _buffLen;
     return 0;
   } else {
     if (_idx > 0) {
-      mean = _sum / (double)_idx;
+      mean = _sum / (double) _idx;
       return 0;
     } else {
       return -1;
     }
+
   }
 }
 
@@ -248,11 +254,11 @@ int16_t CircularBuffer::Variance(double& var) {
   assert(_buffLen > 0);
 
   if (_buffIsFull) {
-    var = _sumSqr / (double)_buffLen;
+    var = _sumSqr / (double) _buffLen;
     return 0;
   } else {
     if (_idx > 0) {
-      var = _sumSqr / (double)_idx;
+      var = _sumSqr / (double) _idx;
       return 0;
     } else {
       return -1;
@@ -263,9 +269,9 @@ int16_t CircularBuffer::Variance(double& var) {
 }  // namespace test
 
 bool FixedPayloadTypeCodec(const char* payloadName) {
-  char fixPayloadTypeCodecs[NUM_CODECS_WITH_FIXED_PAYLOAD_TYPE][32] = {
-      "PCMU", "PCMA",  "GSM", "G723", "DVI4", "LPC", "PCMA",
-      "G722", "QCELP", "CN",  "MPA",  "G728", "G729"};
+  char fixPayloadTypeCodecs[NUM_CODECS_WITH_FIXED_PAYLOAD_TYPE][32] = { "PCMU",
+      "PCMA", "GSM", "G723", "DVI4", "LPC", "PCMA", "G722", "QCELP", "CN",
+      "MPA", "G728", "G729" };
 
   for (int n = 0; n < NUM_CODECS_WITH_FIXED_PAYLOAD_TYPE; n++) {
     if (!STR_CASE_CMP(payloadName, fixPayloadTypeCodecs[n])) {

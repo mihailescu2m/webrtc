@@ -2,7 +2,7 @@
   "comments": [
     "Builder for 32-bit devices."
   ],
-  "xcode build version": "9C40b",
+  "xcode version": "8.0",
   "gn_args": [
     "goma_dir=\"$(goma_dir)\"",
     "dcheck_always_on=true",
@@ -15,7 +15,7 @@
   ],
   "additional_compile_targets": [ "all" ],
   "configuration": "Release",
-  "sdk": "iphoneos10.3",
+  "sdk": "iphoneos10.0",
   "tests": [
   ]
 }

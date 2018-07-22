@@ -18,7 +18,9 @@
 
 namespace rtc {
 
-class AsyncUdpSocketTest : public testing::Test, public sigslot::has_slots<> {
+class AsyncUdpSocketTest
+    : public testing::Test,
+      public sigslot::has_slots<> {
  public:
   AsyncUdpSocketTest()
       : pss_(new rtc::PhysicalSocketServer),
@@ -30,7 +32,9 @@ class AsyncUdpSocketTest : public testing::Test, public sigslot::has_slots<> {
                                            &AsyncUdpSocketTest::OnReadyToSend);
   }
 
-  void OnReadyToSend(rtc::AsyncPacketSocket* socket) { ready_to_send_ = true; }
+  void OnReadyToSend(rtc::AsyncPacketSocket* socket) {
+    ready_to_send_ = true;
+  }
 
  protected:
   std::unique_ptr<PhysicalSocketServer> pss_;

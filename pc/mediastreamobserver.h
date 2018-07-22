@@ -22,7 +22,7 @@ namespace webrtc {
 class MediaStreamObserver : public ObserverInterface {
  public:
   explicit MediaStreamObserver(MediaStreamInterface* stream);
-  ~MediaStreamObserver() override;
+  ~MediaStreamObserver();
 
   const MediaStreamInterface* stream() const { return stream_; }
 

@@ -56,7 +56,7 @@ class RembReceiver : public BweReceiver, public RemoteBitrateObserver {
   static const uint32_t kRemoteBitrateEstimatorMinBitrateBps = 30000;
 
   RembReceiver(int flow_id, bool plot);
-  ~RembReceiver() override;
+  virtual ~RembReceiver();
 
   void ReceivePacket(int64_t arrival_time_ms,
                      const MediaPacket& media_packet) override;

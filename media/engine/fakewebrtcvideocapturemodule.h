@@ -16,22 +16,22 @@
 #include "api/video/i420_buffer.h"
 #include "media/base/testutils.h"
 #include "media/engine/webrtcvideocapturer.h"
-#include "rtc_base/task_queue_for_test.h"
+
+class FakeWebRtcVcmFactory;
 
 // Fake class for mocking out webrtc::VideoCaptureModule.
 class FakeWebRtcVideoCaptureModule : public webrtc::VideoCaptureModule {
  public:
-  FakeWebRtcVideoCaptureModule()
-      : callback_(NULL), running_(false) {}
-  ~FakeWebRtcVideoCaptureModule() {}
+  explicit FakeWebRtcVideoCaptureModule(FakeWebRtcVcmFactory* factory)
+      : factory_(factory), callback_(NULL), running_(false) {}
+  ~FakeWebRtcVideoCaptureModule();
   void RegisterCaptureDataCallback(
       rtc::VideoSinkInterface<webrtc::VideoFrame>* callback) override {
     callback_ = callback;
   }
   void DeRegisterCaptureDataCallback() override { callback_ = NULL; }
   int32_t StartCapture(const webrtc::VideoCaptureCapability& cap) override {
-    if (running_)
-      return -1;
+    if (running_) return -1;
     cap_ = cap;
     running_ = true;
     return 0;
@@ -45,8 +45,7 @@ class FakeWebRtcVideoCaptureModule : public webrtc::VideoCaptureModule {
   }
   bool CaptureStarted() override { return running_; }
   int32_t CaptureSettings(webrtc::VideoCaptureCapability& settings) override {
-    if (!running_)
-      return -1;
+    if (!running_) return -1;
     settings = cap_;
     return 0;
   }
@@ -61,24 +60,25 @@ class FakeWebRtcVideoCaptureModule : public webrtc::VideoCaptureModule {
     return true;  // Rotation compensation is turned on.
   }
   void SendFrame(int w, int h) {
-    if (!running_ || !callback_)
-      return;
+    if (!running_) return;
 
-    task_queue_.SendTask([this, w, h]() {
-      rtc::scoped_refptr<webrtc::I420Buffer> buffer =
-          webrtc::I420Buffer::Create(w, h);
-      // Initialize memory to satisfy DrMemory tests. See
-      // https://bugs.chromium.org/p/libyuv/issues/detail?id=377
-      buffer->InitializeData();
-      callback_->OnFrame(webrtc::VideoFrame(buffer, webrtc::kVideoRotation_0,
-                                            0 /* timestamp_us */));
-    });
+    rtc::scoped_refptr<webrtc::I420Buffer> buffer =
+        webrtc::I420Buffer::Create(w, h);
+    // Initialize memory to satisfy DrMemory tests. See
+    // https://bugs.chromium.org/p/libyuv/issues/detail?id=377
+    buffer->InitializeData();
+    if (callback_) {
+      callback_->OnFrame(
+          webrtc::VideoFrame(buffer, 0, 0, webrtc::kVideoRotation_0));
+    }
   }
 
-  const webrtc::VideoCaptureCapability& cap() const { return cap_; }
+  const webrtc::VideoCaptureCapability& cap() const {
+    return cap_;
+  }
 
  private:
-  rtc::test::TaskQueueForTest task_queue_{"FakeWebRtcVideoCaptureModule"};
+  FakeWebRtcVcmFactory* factory_;
   rtc::VideoSinkInterface<webrtc::VideoFrame>* callback_;
   bool running_;
   webrtc::VideoCaptureCapability cap_;

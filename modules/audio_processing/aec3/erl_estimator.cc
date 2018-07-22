@@ -31,10 +31,9 @@ ErlEstimator::ErlEstimator() {
 
 ErlEstimator::~ErlEstimator() = default;
 
-void ErlEstimator::Update(rtc::ArrayView<const float> render_spectrum,
-                          rtc::ArrayView<const float> capture_spectrum) {
-  RTC_DCHECK_EQ(kFftLengthBy2Plus1, render_spectrum.size());
-  RTC_DCHECK_EQ(kFftLengthBy2Plus1, capture_spectrum.size());
+void ErlEstimator::Update(
+    const std::array<float, kFftLengthBy2Plus1>& render_spectrum,
+    const std::array<float, kFftLengthBy2Plus1>& capture_spectrum) {
   const auto& X2 = render_spectrum;
   const auto& Y2 = capture_spectrum;
 

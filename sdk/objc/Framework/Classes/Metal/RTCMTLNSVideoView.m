@@ -27,7 +27,6 @@
   id<RTCMTLRenderer> _renderer;
 }
 
-@synthesize delegate = _delegate;
 @synthesize renderer = _renderer;
 @synthesize metalView = _metalView;
 @synthesize videoFrame = _videoFrame;
@@ -106,9 +105,6 @@
 
 - (void)setSize:(CGSize)size {
   _metalView.drawableSize = size;
-  dispatch_async(dispatch_get_main_queue(), ^{
-    [self.delegate videoView:self didChangeVideoSize:size];
-  });
   [_metalView draw];
 }
 

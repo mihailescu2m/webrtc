@@ -15,8 +15,9 @@
 namespace webrtc {
 
 VideoTrackSource::VideoTrackSource(
+    rtc::VideoSourceInterface<VideoFrame>* source,
     bool remote)
-    : state_(kInitializing), remote_(remote) {
+    : source_(source), state_(kInitializing), remote_(remote) {
   worker_thread_checker_.DetachFromThread();
 }
 
@@ -27,16 +28,26 @@ void VideoTrackSource::SetState(SourceState new_state) {
   }
 }
 
+void VideoTrackSource::OnSourceDestroyed() {
+  source_ = nullptr;
+}
+
 void VideoTrackSource::AddOrUpdateSink(
     rtc::VideoSinkInterface<VideoFrame>* sink,
     const rtc::VideoSinkWants& wants) {
   RTC_DCHECK(worker_thread_checker_.CalledOnValidThread());
-  source()->AddOrUpdateSink(sink, wants);
+  if (!source_) {
+    return;
+  }
+  source_->AddOrUpdateSink(sink, wants);
 }
 
 void VideoTrackSource::RemoveSink(rtc::VideoSinkInterface<VideoFrame>* sink) {
   RTC_DCHECK(worker_thread_checker_.CalledOnValidThread());
-  source()->RemoveSink(sink);
+  if (!source_) {
+    return;
+  }
+  source_->RemoveSink(sink);
 }
 
 }  //  namespace webrtc

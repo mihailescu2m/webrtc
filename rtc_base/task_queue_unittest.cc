@@ -21,13 +21,10 @@
 #include "rtc_base/bind.h"
 #include "rtc_base/event.h"
 #include "rtc_base/gunit.h"
-#include "rtc_base/task_queue_for_test.h"
+#include "rtc_base/task_queue.h"
 #include "rtc_base/timeutils.h"
 
-using rtc::test::TaskQueueForTest;
-
 namespace rtc {
-
 namespace {
 // Noop on all platforms except Windows, where it turns on high precision
 // multimedia timers which increases the precision of TimeMillis() while in
@@ -47,7 +44,9 @@ class EnableHighResTimers {
   const bool enabled_;
 #endif
 };
+}
 
+namespace {
 void CheckCurrent(Event* signal, TaskQueue* queue) {
   EXPECT_TRUE(queue->IsCurrent());
   if (signal)
@@ -77,31 +76,34 @@ TEST(TaskQueueTest, PostAndCheckCurrent) {
 
 TEST(TaskQueueTest, PostCustomTask) {
   static const char kQueueName[] = "PostCustomImplementation";
-  TaskQueueForTest queue(kQueueName);
+  Event event(false, false);
+  TaskQueue queue(kQueueName);
 
   class CustomTask : public QueuedTask {
    public:
-    CustomTask() {}
-    bool ran() const { return ran_; }
+    explicit CustomTask(Event* event) : event_(event) {}
 
    private:
     bool Run() override {
-      ran_ = true;
-      return false;  // Never allow the task to be deleted by the queue.
+      event_->Set();
+      return false;  // Never allows the task to be deleted by the queue.
     }
 
-    bool ran_ = false;
-  } my_task;
+    Event* const event_;
+  } my_task(&event);
 
-  queue.SendTask(&my_task);
-  EXPECT_TRUE(my_task.ran());
+  // Please don't do this in production code! :)
+  queue.PostTask(std::unique_ptr<QueuedTask>(&my_task));
+  EXPECT_TRUE(event.Wait(1000));
 }
 
 TEST(TaskQueueTest, PostLambda) {
-  TaskQueueForTest queue("PostLambda");
-  bool ran = false;
-  queue.SendTask([&ran]() { ran = true; });
-  EXPECT_TRUE(ran);
+  static const char kQueueName[] = "PostLambda";
+  Event event(false, false);
+  TaskQueue queue(kQueueName);
+
+  queue.PostTask([&event]() { event.Set(); });
+  EXPECT_TRUE(event.Wait(1000));
 }
 
 TEST(TaskQueueTest, PostDelayedZero) {
@@ -166,7 +168,8 @@ TEST(TaskQueueTest, PostMultipleDelayed) {
   std::vector<std::unique_ptr<Event>> events;
   for (int i = 0; i < 100; ++i) {
     events.push_back(std::unique_ptr<Event>(new Event(false, false)));
-    queue.PostDelayedTask(Bind(&CheckCurrent, events.back().get(), &queue), i);
+    queue.PostDelayedTask(
+        Bind(&CheckCurrent, events.back().get(), &queue), i);
   }
 
   for (const auto& e : events)
@@ -190,9 +193,9 @@ TEST(TaskQueueTest, PostAndReply) {
   TaskQueue post_queue(kPostQueue);
   TaskQueue reply_queue(kReplyQueue);
 
-  post_queue.PostTaskAndReply(Bind(&CheckCurrent, nullptr, &post_queue),
-                              Bind(&CheckCurrent, &event, &reply_queue),
-                              &reply_queue);
+  post_queue.PostTaskAndReply(
+      Bind(&CheckCurrent, nullptr, &post_queue),
+      Bind(&CheckCurrent, &event, &reply_queue), &reply_queue);
   EXPECT_TRUE(event.Wait(1000));
 }
 
@@ -371,10 +374,12 @@ TEST(TaskQueueTest, PostAndReplyDeadlock) {
   EXPECT_TRUE(event.Wait(1000));
 }
 
-void TestPostTaskAndReply(TaskQueue* work_queue, Event* event) {
+void TestPostTaskAndReply(TaskQueue* work_queue,
+                          Event* event) {
   ASSERT_FALSE(work_queue->IsCurrent());
-  work_queue->PostTaskAndReply(Bind(&CheckCurrent, nullptr, work_queue),
-                               NewClosure([event]() { event->Set(); }));
+  work_queue->PostTaskAndReply(
+      Bind(&CheckCurrent, nullptr, work_queue),
+      NewClosure([event]() { event->Set(); }));
 }
 
 // Does a PostTaskAndReply from within a task to post and reply to the current
@@ -386,7 +391,8 @@ TEST(TaskQueueTest, PostAndReply2) {
   TaskQueue queue(kQueueName);
   TaskQueue work_queue(kWorkQueueName);
 
-  queue.PostTask(Bind(&TestPostTaskAndReply, &work_queue, &event));
+  queue.PostTask(
+      Bind(&TestPostTaskAndReply, &work_queue, &event));
   EXPECT_TRUE(event.Wait(1000));
 }
 

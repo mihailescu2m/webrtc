@@ -12,42 +12,29 @@
 #include <algorithm>
 #include <array>
 
-#include "api/audio/echo_canceller3_config.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
+#include "modules/audio_processing/include/audio_processing.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
 #include "rtc_base/checks.h"
-#include "system_wrappers/include/field_trial.h"
 
 namespace webrtc {
-namespace {
-size_t GetDownSamplingFactor(const EchoCanceller3Config& config) {
-  // Do not use down sampling factor 8 if kill switch is triggered.
-  return (config.delay.down_sampling_factor == 8 &&
-          field_trial::IsEnabled("WebRTC-Aec3DownSamplingFactor8KillSwitch"))
-             ? 4
-             : config.delay.down_sampling_factor;
-}
-}  // namespace
 
 EchoPathDelayEstimator::EchoPathDelayEstimator(
     ApmDataDumper* data_dumper,
     const EchoCanceller3Config& config)
     : data_dumper_(data_dumper),
-      down_sampling_factor_(GetDownSamplingFactor(config)),
+      down_sampling_factor_(config.delay.down_sampling_factor),
       sub_block_size_(down_sampling_factor_ != 0
                           ? kBlockSize / down_sampling_factor_
                           : kBlockSize),
       capture_decimator_(down_sampling_factor_),
-      matched_filter_(
-          data_dumper_,
-          DetectOptimization(),
-          sub_block_size_,
-          kMatchedFilterWindowSizeSubBlocks,
-          config.delay.num_filters,
-          kMatchedFilterAlignmentShiftSizeSubBlocks,
-          GetDownSamplingFactor(config) == 8
-              ? config.render_levels.poor_excitation_render_limit_ds8
-              : config.render_levels.poor_excitation_render_limit),
+      matched_filter_(data_dumper_,
+                      DetectOptimization(),
+                      sub_block_size_,
+                      kMatchedFilterWindowSizeSubBlocks,
+                      config.delay.num_filters,
+                      kMatchedFilterAlignmentShiftSizeSubBlocks,
+                      config.render_levels.poor_excitation_render_limit),
       matched_filter_lag_aggregator_(data_dumper_,
                                      matched_filter_.GetMaxFilterLag()) {
   RTC_DCHECK(data_dumper);
@@ -56,16 +43,12 @@ EchoPathDelayEstimator::EchoPathDelayEstimator(
 
 EchoPathDelayEstimator::~EchoPathDelayEstimator() = default;
 
-void EchoPathDelayEstimator::Reset(bool soft_reset) {
-  if (!soft_reset) {
-    matched_filter_lag_aggregator_.Reset();
-  }
+void EchoPathDelayEstimator::Reset() {
+  matched_filter_lag_aggregator_.Reset();
   matched_filter_.Reset();
-  old_aggregated_lag_ = absl::nullopt;
-  consistent_estimate_counter_ = 0;
 }
 
-absl::optional<DelayEstimate> EchoPathDelayEstimator::EstimateDelay(
+rtc::Optional<size_t> EchoPathDelayEstimator::EstimateDelay(
     const DownsampledRenderBuffer& render_buffer,
     rtc::ArrayView<const float> capture) {
   RTC_DCHECK_EQ(kBlockSize, capture.size());
@@ -81,38 +64,24 @@ absl::optional<DelayEstimate> EchoPathDelayEstimator::EstimateDelay(
                         16000 / down_sampling_factor_, 1);
   matched_filter_.Update(render_buffer, downsampled_capture);
 
-  absl::optional<DelayEstimate> aggregated_matched_filter_lag =
+  rtc::Optional<size_t> aggregated_matched_filter_lag =
       matched_filter_lag_aggregator_.Aggregate(
           matched_filter_.GetLagEstimates());
 
   // TODO(peah): Move this logging outside of this class once EchoCanceller3
   // development is done.
-  data_dumper_->DumpRaw(
-      "aec3_echo_path_delay_estimator_delay",
-      aggregated_matched_filter_lag
-          ? static_cast<int>(aggregated_matched_filter_lag->delay *
-                             down_sampling_factor_)
-          : -1);
+  data_dumper_->DumpRaw("aec3_echo_path_delay_estimator_delay",
+                        aggregated_matched_filter_lag
+                            ? static_cast<int>(*aggregated_matched_filter_lag *
+                                               down_sampling_factor_)
+                            : -1);
 
   // Return the detected delay in samples as the aggregated matched filter lag
   // compensated by the down sampling factor for the signal being correlated.
-  if (aggregated_matched_filter_lag) {
-    aggregated_matched_filter_lag->delay *= down_sampling_factor_;
-  }
-
-  if (old_aggregated_lag_ && aggregated_matched_filter_lag &&
-      old_aggregated_lag_->delay == aggregated_matched_filter_lag->delay) {
-    ++consistent_estimate_counter_;
-  } else {
-    consistent_estimate_counter_ = 0;
-  }
-  old_aggregated_lag_ = aggregated_matched_filter_lag;
-  constexpr size_t kNumBlocksPerSecondBy2 = kNumBlocksPerSecond / 2;
-  if (consistent_estimate_counter_ > kNumBlocksPerSecondBy2) {
-    Reset(true);
-  }
-
-  return aggregated_matched_filter_lag;
+  return aggregated_matched_filter_lag
+             ? rtc::Optional<size_t>(*aggregated_matched_filter_lag *
+                                     down_sampling_factor_)
+             : rtc::nullopt;
 }
 
 }  // namespace webrtc

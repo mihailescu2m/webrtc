@@ -16,6 +16,14 @@
 #import "WebRTC/RTCVideoCodec.h"
 
 #include "rtc_base/timeutils.h"
+#include "sdk/objc/Framework/Classes/Video/objc_frame_buffer.h"
+#include "system_wrappers/include/field_trial.h"
+
+const char kHighProfileExperiment[] = "WebRTC-H264HighProfile";
+
+bool IsHighProfileEnabled() {
+  return webrtc::field_trial::IsEnabled(kHighProfileExperiment);
+}
 
 // H264 specific settings.
 @implementation RTCCodecSpecificInfoH264
@@ -41,17 +49,19 @@
   NSMutableArray<RTCVideoCodecInfo *> *codecs = [NSMutableArray array];
   NSString *codecName = kRTCVideoCodecH264Name;
 
-  NSDictionary<NSString *, NSString *> *constrainedHighParams = @{
-    @"profile-level-id" : kRTCMaxSupportedH264ProfileLevelConstrainedHigh,
-    @"level-asymmetry-allowed" : @"1",
-    @"packetization-mode" : @"1",
-  };
-  RTCVideoCodecInfo *constrainedHighInfo =
-      [[RTCVideoCodecInfo alloc] initWithName:codecName parameters:constrainedHighParams];
-  [codecs addObject:constrainedHighInfo];
+  if (IsHighProfileEnabled()) {
+    NSDictionary<NSString *, NSString *> *constrainedHighParams = @{
+      @"profile-level-id" : kRTCLevel31ConstrainedHigh,
+      @"level-asymmetry-allowed" : @"1",
+      @"packetization-mode" : @"1",
+    };
+    RTCVideoCodecInfo *constrainedHighInfo =
+        [[RTCVideoCodecInfo alloc] initWithName:codecName parameters:constrainedHighParams];
+    [codecs addObject:constrainedHighInfo];
+  }
 
   NSDictionary<NSString *, NSString *> *constrainedBaselineParams = @{
-    @"profile-level-id" : kRTCMaxSupportedH264ProfileLevelConstrainedBaseline,
+    @"profile-level-id" : kRTCLevel31ConstrainedBaseline,
     @"level-asymmetry-allowed" : @"1",
     @"packetization-mode" : @"1",
   };

@@ -98,7 +98,7 @@ class StatisticsCalculator {
   void GetNetworkStatistics(int fs_hz,
                             size_t num_samples_in_buffers,
                             size_t samples_per_packet,
-                            NetEqNetworkStatistics* stats);
+                            NetEqNetworkStatistics *stats);
 
   // Populates |preferred_buffer_size_ms|, |jitter_peaks_found| and
   // |clockdrift_ppm| in |stats|. This is a convenience method, and does not
@@ -173,14 +173,13 @@ class StatisticsCalculator {
   // If the correction is negative, it is cached and will be subtracted against
   // future additions to the counter. This is meant to be called from
   // Expanded{Voice,Noise}Samples{Correction}.
-  void ConcealedSamplesCorrection(int num_samples, bool is_voice);
+  void ConcealedSamplesCorrection(int num_samples);
 
   // Calculates numerator / denominator, and returns the value in Q14.
   static uint16_t CalculateQ14Ratio(size_t numerator, uint32_t denominator);
 
   NetEqLifetimeStatistics lifetime_stats_;
   size_t concealed_samples_correction_ = 0;
-  size_t voice_concealed_samples_correction_ = 0;
   size_t preemptive_samples_;
   size_t accelerate_samples_;
   size_t added_zero_samples_;

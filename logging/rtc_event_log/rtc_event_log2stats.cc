@@ -164,12 +164,6 @@ std::string EventTypeToString(webrtc::rtclog::Event::EventType event_type) {
       return "BWE_PROBE_CREATED";
     case webrtc::rtclog::Event::BWE_PROBE_RESULT_EVENT:
       return "BWE_PROBE_RESULT";
-    case webrtc::rtclog::Event::ALR_STATE_EVENT:
-      return "ALR_STATE_EVENT";
-    case webrtc::rtclog::Event::ICE_CANDIDATE_PAIR_CONFIG:
-      return "ICE_CANDIDATE_PAIR_CONFIG";
-    case webrtc::rtclog::Event::ICE_CANDIDATE_PAIR_EVENT:
-      return "ICE_CANDIDATE_PAIR_EVENT";
   }
   RTC_NOTREACHED();
   return "UNKNOWN_EVENT";
@@ -189,8 +183,8 @@ int main(int argc, char* argv[]) {
       " --help for usage.\n"
       "Example usage:\n" +
       program_name + " input.rel\n";
-  if (rtc::FlagList::SetFlagsFromCommandLine(&argc, argv, true) || FLAG_help ||
-      argc != 2) {
+  if (rtc::FlagList::SetFlagsFromCommandLine(&argc, argv, true) ||
+      FLAG_help || argc != 2) {
     std::cout << usage;
     if (FLAG_help) {
       rtc::FlagList::Print(nullptr, false);
@@ -220,7 +214,7 @@ int main(int argc, char* argv[]) {
   size_t malformed_event_size = 0;
   size_t accumulated_event_size = 0;
   for (const webrtc::rtclog::Event& event : events) {
-    size_t serialized_size = event.ByteSizeLong();
+    size_t serialized_size = event.ByteSize();
     // When the event is written on the disk, it is part of an EventStream
     // object. The event stream will prepend a 1 byte field number/wire type,
     // and a varint encoding (base 128) of the event length.

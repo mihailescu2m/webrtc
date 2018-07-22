@@ -29,7 +29,7 @@ class MetricsTest : public ::testing::Test {
   MetricsTest() {}
 
  protected:
-  void SetUp() override { metrics::Reset(); }
+  virtual void SetUp() { metrics::Reset(); }
 };
 
 TEST_F(MetricsTest, InitiallyNoSamples) {

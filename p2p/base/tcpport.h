@@ -83,13 +83,12 @@ class TCPPort : public Port {
 
   void TryCreateServerSocket();
 
-  rtc::AsyncPacketSocket* GetIncoming(const rtc::SocketAddress& addr,
-                                      bool remove = false);
+  rtc::AsyncPacketSocket* GetIncoming(
+      const rtc::SocketAddress& addr, bool remove = false);
 
   // Receives packet signal from the local TCP Socket.
   void OnReadPacket(rtc::AsyncPacketSocket* socket,
-                    const char* data,
-                    size_t size,
+                    const char* data, size_t size,
                     const rtc::SocketAddress& remote_addr,
                     const rtc::PacketTime& packet_time);
 
@@ -101,7 +100,7 @@ class TCPPort : public Port {
   void OnAddressReady(rtc::AsyncPacketSocket* socket,
                       const rtc::SocketAddress& address);
 
-  // TODO(?): Is this still needed?
+  // TODO: Is this still needed?
   bool incoming_only_;
   bool allow_listen_;
   rtc::AsyncPacketSocket* socket_;
@@ -114,8 +113,7 @@ class TCPPort : public Port {
 class TCPConnection : public Connection {
  public:
   // Connection is outgoing unless socket is specified
-  TCPConnection(TCPPort* port,
-                const Candidate& candidate,
+  TCPConnection(TCPPort* port, const Candidate& candidate,
                 rtc::AsyncPacketSocket* socket = 0);
   ~TCPConnection() override;
 
@@ -156,8 +154,7 @@ class TCPConnection : public Connection {
   void OnConnect(rtc::AsyncPacketSocket* socket);
   void OnClose(rtc::AsyncPacketSocket* socket, int error);
   void OnReadPacket(rtc::AsyncPacketSocket* socket,
-                    const char* data,
-                    size_t size,
+                    const char* data, size_t size,
                     const rtc::SocketAddress& remote_addr,
                     const rtc::PacketTime& packet_time);
   void OnReadyToSend(rtc::AsyncPacketSocket* socket);

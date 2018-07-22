@@ -108,5 +108,5 @@ void GlRenderer::OnFrame(const webrtc::VideoFrame& frame) {
   glBindTexture(GL_TEXTURE_2D, 0);
   glFlush();
 }
-}  // namespace test
-}  // namespace webrtc
+}  // test
+}  // webrtc

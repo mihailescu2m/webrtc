@@ -16,6 +16,7 @@
 
 #include "rtc_base/logging.h"
 #include "rtc_base/thread.h"
+#include "sdk/android/src/jni/classreferenceholder.h"
 #include "sdk/android/src/jni/jni_helpers.h"
 
 namespace webrtc {

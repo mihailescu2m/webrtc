@@ -18,7 +18,6 @@
 using testing::ElementsAre;
 using testing::ElementsAreArray;
 using testing::make_tuple;
-using testing::SizeIs;
 using webrtc::rtcp::Dlrr;
 using webrtc::rtcp::ExtendedReports;
 using webrtc::rtcp::ReceiveTimeInfo;
@@ -39,13 +38,16 @@ bool operator==(const RTCPVoIPMetric& metric1, const RTCPVoIPMetric& metric2) {
          metric1.endSystemDelay == metric2.endSystemDelay &&
          metric1.signalLevel == metric2.signalLevel &&
          metric1.noiseLevel == metric2.noiseLevel &&
-         metric1.RERL == metric2.RERL && metric1.Gmin == metric2.Gmin &&
+         metric1.RERL == metric2.RERL &&
+         metric1.Gmin == metric2.Gmin &&
          metric1.Rfactor == metric2.Rfactor &&
          metric1.extRfactor == metric2.extRfactor &&
-         metric1.MOSLQ == metric2.MOSLQ && metric1.MOSCQ == metric2.MOSCQ &&
+         metric1.MOSLQ == metric2.MOSLQ &&
+         metric1.MOSCQ == metric2.MOSCQ &&
          metric1.RXconfig == metric2.RXconfig &&
          metric1.JBnominal == metric2.JBnominal &&
-         metric1.JBmax == metric2.JBmax && metric1.JBabsMax == metric2.JBabsMax;
+         metric1.JBmax == metric2.JBmax &&
+         metric1.JBabsMax == metric2.JBabsMax;
 }
 
 namespace rtcp {
@@ -54,7 +56,8 @@ bool operator==(const Rrtr& rrtr1, const Rrtr& rrtr2) {
 }
 
 bool operator==(const ReceiveTimeInfo& time1, const ReceiveTimeInfo& time2) {
-  return time1.ssrc == time2.ssrc && time1.last_rr == time2.last_rr &&
+  return time1.ssrc == time2.ssrc &&
+         time1.last_rr == time2.last_rr &&
          time1.delay_since_last_rr == time2.delay_since_last_rr;
 }
 
@@ -109,26 +112,26 @@ Rrtr RtcpPacketExtendedReportsTest::Rand<Rrtr>() {
 template <>
 RTCPVoIPMetric RtcpPacketExtendedReportsTest::Rand<RTCPVoIPMetric>() {
   RTCPVoIPMetric metric;
-  metric.lossRate = Rand<uint8_t>();
-  metric.discardRate = Rand<uint8_t>();
-  metric.burstDensity = Rand<uint8_t>();
-  metric.gapDensity = Rand<uint8_t>();
-  metric.burstDuration = Rand<uint16_t>();
-  metric.gapDuration = Rand<uint16_t>();
+  metric.lossRate       = Rand<uint8_t>();
+  metric.discardRate    = Rand<uint8_t>();
+  metric.burstDensity   = Rand<uint8_t>();
+  metric.gapDensity     = Rand<uint8_t>();
+  metric.burstDuration  = Rand<uint16_t>();
+  metric.gapDuration    = Rand<uint16_t>();
   metric.roundTripDelay = Rand<uint16_t>();
   metric.endSystemDelay = Rand<uint16_t>();
-  metric.signalLevel = Rand<uint8_t>();
-  metric.noiseLevel = Rand<uint8_t>();
-  metric.RERL = Rand<uint8_t>();
-  metric.Gmin = Rand<uint8_t>();
-  metric.Rfactor = Rand<uint8_t>();
-  metric.extRfactor = Rand<uint8_t>();
-  metric.MOSLQ = Rand<uint8_t>();
-  metric.MOSCQ = Rand<uint8_t>();
-  metric.RXconfig = Rand<uint8_t>();
-  metric.JBnominal = Rand<uint16_t>();
-  metric.JBmax = Rand<uint16_t>();
-  metric.JBabsMax = Rand<uint16_t>();
+  metric.signalLevel    = Rand<uint8_t>();
+  metric.noiseLevel     = Rand<uint8_t>();
+  metric.RERL           = Rand<uint8_t>();
+  metric.Gmin           = Rand<uint8_t>();
+  metric.Rfactor        = Rand<uint8_t>();
+  metric.extRfactor     = Rand<uint8_t>();
+  metric.MOSLQ          = Rand<uint8_t>();
+  metric.MOSCQ          = Rand<uint8_t>();
+  metric.RXconfig       = Rand<uint8_t>();
+  metric.JBnominal      = Rand<uint16_t>();
+  metric.JBmax          = Rand<uint16_t>();
+  metric.JBabsMax       = Rand<uint16_t>();
   return metric;
 }
 
@@ -208,18 +211,6 @@ TEST_F(RtcpPacketExtendedReportsTest, CreateAndParseWithDlrrWithTwoSubBlocks) {
   EXPECT_THAT(parsed.dlrr().sub_blocks(), ElementsAre(kTimeInfo1, kTimeInfo2));
 }
 
-TEST_F(RtcpPacketExtendedReportsTest, CreateLimitsTheNumberOfDlrrSubBlocks) {
-  const ReceiveTimeInfo kTimeInfo = Rand<ReceiveTimeInfo>();
-  ExtendedReports xr;
-
-  for (size_t i = 0; i < ExtendedReports::kMaxNumberOfDlrrItems; ++i)
-    EXPECT_TRUE(xr.AddDlrrItem(kTimeInfo));
-  EXPECT_FALSE(xr.AddDlrrItem(kTimeInfo));
-
-  EXPECT_THAT(xr.dlrr().sub_blocks(),
-              SizeIs(ExtendedReports::kMaxNumberOfDlrrItems));
-}
-
 TEST_F(RtcpPacketExtendedReportsTest, CreateAndParseWithVoipMetric) {
   const VoipMetric kVoipMetric = Rand<VoipMetric>();
 
@@ -237,15 +228,15 @@ TEST_F(RtcpPacketExtendedReportsTest, CreateAndParseWithVoipMetric) {
   EXPECT_EQ(kVoipMetric, parsed.voip_metric());
 }
 
-TEST_F(RtcpPacketExtendedReportsTest, CreateAndParseWithMaximumReportBlocks) {
+TEST_F(RtcpPacketExtendedReportsTest, CreateAndParseWithMultipleReportBlocks) {
   const Rrtr kRrtr = Rand<Rrtr>();
+  const ReceiveTimeInfo kTimeInfo = Rand<ReceiveTimeInfo>();
   const VoipMetric kVoipMetric = Rand<VoipMetric>();
 
   ExtendedReports xr;
   xr.SetSenderSsrc(kSenderSsrc);
   xr.SetRrtr(kRrtr);
-  for (size_t i = 0; i < ExtendedReports::kMaxNumberOfDlrrItems; ++i)
-    xr.AddDlrrItem(Rand<ReceiveTimeInfo>());
+  xr.AddDlrrItem(kTimeInfo);
   xr.SetVoipMetric(kVoipMetric);
 
   rtc::Buffer packet = xr.Build();
@@ -256,8 +247,7 @@ TEST_F(RtcpPacketExtendedReportsTest, CreateAndParseWithMaximumReportBlocks) {
 
   EXPECT_EQ(kSenderSsrc, parsed.sender_ssrc());
   EXPECT_EQ(kRrtr, parsed.rrtr());
-  EXPECT_THAT(parsed.dlrr().sub_blocks(),
-              ElementsAreArray(xr.dlrr().sub_blocks()));
+  EXPECT_THAT(parsed.dlrr().sub_blocks(), ElementsAre(kTimeInfo));
   EXPECT_EQ(kVoipMetric, parsed.voip_metric());
 }
 

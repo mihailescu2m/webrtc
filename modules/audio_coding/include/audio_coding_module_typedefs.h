@@ -13,6 +13,7 @@
 
 #include <map>
 
+#include "modules/include/module_common_types.h"
 #include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
@@ -41,8 +42,8 @@ enum ACMVADMode {
 // kAudio             : optimized for non-voice signals like music.
 //
 enum OpusApplicationMode {
-  kVoip = 0,
-  kAudio = 1,
+ kVoip = 0,
+ kAudio = 1,
 };
 
 }  // namespace webrtc

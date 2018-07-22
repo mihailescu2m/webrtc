@@ -15,7 +15,7 @@
 
 #include <list>
 
-#include "absl/types/optional.h"
+#include "api/optional.h"
 #include "api/video/video_frame.h"
 
 namespace webrtc {
@@ -25,13 +25,12 @@ class VideoRenderFrames {
  public:
   explicit VideoRenderFrames(uint32_t render_delay_ms);
   VideoRenderFrames(const VideoRenderFrames&) = delete;
-  ~VideoRenderFrames();
 
   // Add a frame to the render queue
   int32_t AddFrame(VideoFrame&& new_frame);
 
   // Get a frame for rendering, or false if it's not time to render.
-  absl::optional<VideoFrame> FrameToRender();
+  rtc::Optional<VideoFrame> FrameToRender();
 
   // Returns the number of ms to next frame to render
   uint32_t TimeToNextFrameRelease();

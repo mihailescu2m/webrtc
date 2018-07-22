@@ -22,8 +22,6 @@
 
 namespace webrtc {
 
-const int kStandardDPI = 96;
-
 // DesktopFrame represents a video frame captured from the screen.
 class DesktopFrame {
  public:
@@ -32,21 +30,15 @@ class DesktopFrame {
 
   virtual ~DesktopFrame();
 
-  // Returns the rectangle in full desktop coordinates to indicate it covers
-  // the area of top_left() to top_letf() + size() / scale_factor().
+  // Returns the rectangle in full desktop coordinates to indicate the area
+  // covered by the DesktopFrame.
   DesktopRect rect() const;
 
-  // Returns the scale factor from DIPs to physical pixels of the frame.
-  // Assumes same scale in both X and Y directions at present.
-  float scale_factor() const;
-
-  // Size of the frame. In physical coordinates, mapping directly from the
-  // underlying buffer.
+  // Size of the frame.
   const DesktopSize& size() const { return size_; }
 
   // The top-left of the frame in full desktop coordinates. E.g. the top left
-  // monitor should start from (0, 0). The desktop coordinates may be scaled by
-  // OS, but this is always consistent with the MouseCursorMonitor.
+  // monitor should start from (0, 0).
   const DesktopVector& top_left() const { return top_left_; }
   void set_top_left(const DesktopVector& top_left) { top_left_ = top_left; }
 
@@ -90,7 +82,9 @@ class DesktopFrame {
   // Not all DesktopCapturer implementations set this field; it's set to
   // kUnknown by default.
   uint32_t capturer_id() const { return capturer_id_; }
-  void set_capturer_id(uint32_t capturer_id) { capturer_id_ = capturer_id; }
+  void set_capturer_id(uint32_t capturer_id) {
+    capturer_id_ = capturer_id;
+  }
 
   // Copies various information from |other|. Anything initialized in
   // constructor are not copied.
@@ -191,3 +185,4 @@ class SharedMemoryDesktopFrame : public DesktopFrame {
 }  // namespace webrtc
 
 #endif  // MODULES_DESKTOP_CAPTURE_DESKTOP_FRAME_H_
+

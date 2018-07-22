@@ -242,7 +242,7 @@ const cricket::VideoFormat& GetBestCaptureFormat(
 // Return false if the key is mandatory, and the value is invalid.
 bool ExtractOption(const MediaConstraintsInterface* all_constraints,
                    const std::string& key,
-                   absl::optional<bool>* option) {
+                   rtc::Optional<bool>* option) {
   size_t mandatory = 0;
   bool value;
   if (FindConstraint(all_constraints, key, &value, &mandatory)) {
@@ -288,7 +288,7 @@ VideoCapturerTrackSource::VideoCapturerTrackSource(
     rtc::Thread* worker_thread,
     std::unique_ptr<cricket::VideoCapturer> capturer,
     bool remote)
-    : VideoTrackSource(remote),
+    : VideoTrackSource(capturer.get(), remote),
       signaling_thread_(rtc::Thread::Current()),
       worker_thread_(worker_thread),
       video_capturer_(std::move(capturer)),

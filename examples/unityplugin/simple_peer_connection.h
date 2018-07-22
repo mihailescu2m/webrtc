@@ -64,7 +64,8 @@ class SimplePeerConnection : public webrtc::PeerConnectionObserver,
   bool CreatePeerConnection(const char** turn_urls,
                             const int no_of_urls,
                             const char* username,
-                            const char* credential);
+                            const char* credential,
+                            bool is_receiver);
   void CloseDataChannel();
   std::unique_ptr<cricket::VideoCapturer> OpenVideoCaptureDevice();
   void SetAudioControl();
@@ -88,7 +89,7 @@ class SimplePeerConnection : public webrtc::PeerConnectionObserver,
 
   // CreateSessionDescriptionObserver implementation.
   void OnSuccess(webrtc::SessionDescriptionInterface* desc) override;
-  void OnFailure(webrtc::RTCError error) override;
+  void OnFailure(const std::string& error) override;
 
   // DataChannelObserver implementation.
   void OnStateChange() override;
@@ -126,7 +127,6 @@ class SimplePeerConnection : public webrtc::PeerConnectionObserver,
 
   bool is_mute_audio_ = false;
   bool is_record_audio_ = false;
-  bool mandatory_receive_ = false;
 
   // disallow copy-and-assign
   SimplePeerConnection(const SimplePeerConnection&) = delete;

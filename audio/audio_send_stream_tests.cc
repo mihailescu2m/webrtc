@@ -20,9 +20,15 @@ class AudioSendTest : public SendTest {
  public:
   AudioSendTest() : SendTest(CallTest::kDefaultTimeoutMs) {}
 
-  size_t GetNumVideoStreams() const override { return 0; }
-  size_t GetNumAudioStreams() const override { return 1; }
-  size_t GetNumFlexfecStreams() const override { return 0; }
+  size_t GetNumVideoStreams() const override {
+    return 0;
+  }
+  size_t GetNumAudioStreams() const override {
+    return 1;
+  }
+  size_t GetNumFlexfecStreams() const override {
+    return 0;
+  }
 };
 }  // namespace
 

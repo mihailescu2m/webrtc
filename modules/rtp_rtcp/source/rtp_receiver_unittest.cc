@@ -48,6 +48,7 @@ class RtpReceiverTest : public ::testing::Test {
         rtp_receiver_(
             RtpReceiver::CreateAudioReceiver(&fake_clock_,
                                              &mock_rtp_data_,
+                                             nullptr,
                                              &rtp_payload_registry_)) {
     rtp_receiver_->RegisterReceivePayload(kPcmuPayloadType,
                                           SdpAudioFormat("PCMU", 8000, 1));
@@ -235,7 +236,7 @@ TEST_F(RtpReceiverTest, GetSourcesRemoveOutdatedSource) {
   header.arrOfCSRCs[0] = kCsrc1;
   EXPECT_TRUE(rtp_receiver_->IncomingRtpPacket(
       header, kTestPayload, sizeof(kTestPayload), payload_specific));
-  auto* rtp_receiver_impl = static_cast<RtpReceiverImpl*>(rtp_receiver_.get());
+  auto rtp_receiver_impl = static_cast<RtpReceiverImpl*>(rtp_receiver_.get());
   auto ssrc_sources = rtp_receiver_impl->ssrc_sources_for_testing();
   ASSERT_EQ(1u, ssrc_sources.size());
   EXPECT_EQ(kSsrc1, ssrc_sources.begin()->source_id());

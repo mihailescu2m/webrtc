@@ -14,11 +14,9 @@
 #include <signal.h>
 #include <string.h>
 #include <unistd.h>
-#include <list>
 
 #include "base/third_party/libevent/event.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/criticalsection.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
 #include "rtc_base/platform_thread.h"
@@ -233,7 +231,7 @@ class TaskQueue::Impl::PostAndReplyTask : public QueuedTask {
     // PostAndReplyTask(), the reply task may or may not actually run.
     // In either case, it will be deleted.
     char message = kRunReplyTask;
-    RTC_UNUSED(write(reply_pipe_, &message, sizeof(message)));
+    write(reply_pipe_, &message, sizeof(message));
   }
 
  private:

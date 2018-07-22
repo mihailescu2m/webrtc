@@ -19,7 +19,7 @@ namespace webrtc {
 
 EncoderRtcpFeedback::EncoderRtcpFeedback(Clock* clock,
                                          const std::vector<uint32_t>& ssrcs,
-                                         VideoStreamEncoderInterface* encoder)
+                                         VideoStreamEncoder* encoder)
     : clock_(clock),
       ssrcs_(ssrcs),
       video_stream_encoder_(encoder),
@@ -60,8 +60,7 @@ void EncoderRtcpFeedback::OnReceivedIntraFrameRequest(uint32_t ssrc) {
     time_last_intra_request_ms_[index] = now_ms;
   }
 
-  // Always produce key frame for all streams.
-  video_stream_encoder_->SendKeyFrame();
+  video_stream_encoder_->OnReceivedIntraFrameRequest(index);
 }
 
 }  // namespace webrtc

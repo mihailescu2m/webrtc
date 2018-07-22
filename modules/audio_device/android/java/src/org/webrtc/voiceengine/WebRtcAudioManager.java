@@ -20,7 +20,6 @@ import android.media.AudioTrack;
 import android.os.Build;
 import java.util.Timer;
 import java.util.TimerTask;
-import javax.annotation.Nullable;
 import org.webrtc.ContextUtils;
 import org.webrtc.Logging;
 
@@ -37,10 +36,6 @@ public class WebRtcAudioManager {
   private static final boolean DEBUG = false;
 
   private static final String TAG = "WebRtcAudioManager";
-
-  // TODO(bugs.webrtc.org/8914): disabled by default until AAudio support has
-  // been completed. Goal is to always return false on Android O MR1 and higher.
-  private static final boolean blacklistDeviceForAAudioUsage = true;
 
   // Use mono as default for both audio directions.
   private static boolean useStereoOutput = false;
@@ -94,6 +89,11 @@ public class WebRtcAudioManager {
 
   private static final int DEFAULT_FRAME_PER_BUFFER = 256;
 
+  // List of possible audio modes.
+  private static final String[] AUDIO_MODES = new String[] {
+      "MODE_NORMAL", "MODE_RINGTONE", "MODE_IN_CALL", "MODE_IN_COMMUNICATION",
+  };
+
   // Private utility class that periodically checks and logs the volume level
   // of the audio stream that is currently controlled by the volume control.
   // A timer triggers logs once every 30 seconds and the timer's associated
@@ -103,7 +103,7 @@ public class WebRtcAudioManager {
     private static final int TIMER_PERIOD_IN_SECONDS = 30;
 
     private final AudioManager audioManager;
-    private @Nullable Timer timer;
+    private Timer timer;
 
     public VolumeLogger(AudioManager audioManager) {
       this.audioManager = audioManager;
@@ -161,7 +161,6 @@ public class WebRtcAudioManager {
   private boolean lowLatencyOutput;
   private boolean lowLatencyInput;
   private boolean proAudio;
-  private boolean aAudio;
   private int sampleRate;
   private int outputChannels;
   private int inputChannels;
@@ -181,9 +180,8 @@ public class WebRtcAudioManager {
     volumeLogger = new VolumeLogger(audioManager);
     storeAudioParameters();
     nativeCacheAudioParameters(sampleRate, outputChannels, inputChannels, hardwareAEC, hardwareAGC,
-        hardwareNS, lowLatencyOutput, lowLatencyInput, proAudio, aAudio, outputBufferSize,
-        inputBufferSize, nativeAudioManager);
-    WebRtcAudioUtils.logAudioState(TAG);
+        hardwareNS, lowLatencyOutput, lowLatencyInput, proAudio, outputBufferSize, inputBufferSize,
+        nativeAudioManager);
   }
 
   private boolean init() {
@@ -191,8 +189,7 @@ public class WebRtcAudioManager {
     if (initialized) {
       return true;
     }
-    Logging.d(TAG, "audio mode is: "
-        + WebRtcAudioUtils.modeToString(audioManager.getMode()));
+    Logging.d(TAG, "audio mode is: " + AUDIO_MODES[audioManager.getMode()]);
     initialized = true;
     volumeLogger.start();
     return true;
@@ -232,7 +229,6 @@ public class WebRtcAudioManager {
     lowLatencyOutput = isLowLatencyOutputSupported();
     lowLatencyInput = isLowLatencyInputSupported();
     proAudio = isProAudioSupported();
-    aAudio = isAAudioSupported();
     outputBufferSize = lowLatencyOutput ? getLowLatencyOutputFramesPerBuffer()
                                         : getMinOutputFrameSize(sampleRate, outputChannels);
     inputBufferSize = lowLatencyInput ? getLowLatencyInputFramesPerBuffer()
@@ -269,15 +265,6 @@ public class WebRtcAudioManager {
     return WebRtcAudioUtils.runningOnMarshmallowOrHigher()
         && ContextUtils.getApplicationContext().getPackageManager().hasSystemFeature(
                PackageManager.FEATURE_AUDIO_PRO);
-  }
-
-  // AAudio is supported on Androio Oreo MR1 (API 27) and higher.
-  // TODO(bugs.webrtc.org/8914): currently disabled by default.
-  private boolean isAAudioSupported() {
-    if (blacklistDeviceForAAudioUsage) {
-      Logging.w(TAG, "AAudio support is currently disabled on all devices!");
-    }
-    return !blacklistDeviceForAAudioUsage && WebRtcAudioUtils.runningOnOreoMR1OrHigher();
   }
 
   // Returns the native output sample rate for this device's output stream.
@@ -378,6 +365,6 @@ public class WebRtcAudioManager {
 
   private native void nativeCacheAudioParameters(int sampleRate, int outputChannels,
       int inputChannels, boolean hardwareAEC, boolean hardwareAGC, boolean hardwareNS,
-      boolean lowLatencyOutput, boolean lowLatencyInput, boolean proAudio, boolean aAudio,
-      int outputBufferSize, int inputBufferSize, long nativeAudioManager);
+      boolean lowLatencyOutput, boolean lowLatencyInput, boolean proAudio, int outputBufferSize,
+      int inputBufferSize, long nativeAudioManager);
 }

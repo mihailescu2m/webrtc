@@ -23,5 +23,5 @@ VideoRenderer* VideoRenderer::CreatePlatformRenderer(const char* window_title,
   }
   return NULL;
 }
-}  // namespace test
-}  // namespace webrtc
+}  // test
+}  // webrtc

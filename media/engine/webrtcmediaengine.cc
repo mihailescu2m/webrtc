@@ -27,7 +27,6 @@
 
 namespace cricket {
 
-#if defined(USE_BUILTIN_SW_CODECS)
 namespace {
 
 MediaEngineInterface* CreateWebRtcMediaEngine(
@@ -67,10 +66,9 @@ MediaEngineInterface* WebRtcMediaEngineFactory::Create(
         audio_decoder_factory,
     WebRtcVideoEncoderFactory* video_encoder_factory,
     WebRtcVideoDecoderFactory* video_decoder_factory) {
-  return CreateWebRtcMediaEngine(adm, audio_encoder_factory,
-                                 audio_decoder_factory, video_encoder_factory,
-                                 video_decoder_factory, nullptr,
-                                 webrtc::AudioProcessingBuilder().Create());
+  return CreateWebRtcMediaEngine(
+      adm, audio_encoder_factory, audio_decoder_factory, video_encoder_factory,
+      video_decoder_factory, nullptr, webrtc::AudioProcessing::Create());
 }
 
 MediaEngineInterface* WebRtcMediaEngineFactory::Create(
@@ -87,7 +85,6 @@ MediaEngineInterface* WebRtcMediaEngineFactory::Create(
       adm, audio_encoder_factory, audio_decoder_factory, video_encoder_factory,
       video_decoder_factory, audio_mixer, audio_processing);
 }
-#endif
 
 std::unique_ptr<MediaEngineInterface> WebRtcMediaEngineFactory::Create(
     rtc::scoped_refptr<webrtc::AudioDeviceModule> adm,
@@ -175,12 +172,12 @@ std::vector<webrtc::RtpExtension> FilterRtpExtensions(
   // Sort by name, ascending (prioritise encryption), so that we don't reset
   // extensions if they were specified in a different order (also allows us
   // to use std::unique below).
-  std::sort(
-      result.begin(), result.end(),
-      [](const webrtc::RtpExtension& rhs, const webrtc::RtpExtension& lhs) {
-        return rhs.encrypt == lhs.encrypt ? rhs.uri < lhs.uri
-                                          : rhs.encrypt > lhs.encrypt;
-      });
+  std::sort(result.begin(), result.end(),
+            [](const webrtc::RtpExtension& rhs,
+               const webrtc::RtpExtension& lhs) {
+                return rhs.encrypt == lhs.encrypt ? rhs.uri < lhs.uri
+                                                  : rhs.encrypt > lhs.encrypt;
+              });
 
   // Remove unnecessary extensions (used on send side).
   if (filter_redundant_extensions) {
@@ -202,8 +199,9 @@ std::vector<webrtc::RtpExtension> FilterRtpExtensions(
   return result;
 }
 
-webrtc::BitrateConstraints GetBitrateConfigForCodec(const Codec& codec) {
-  webrtc::BitrateConstraints config;
+webrtc::Call::Config::BitrateConfig GetBitrateConfigForCodec(
+    const Codec& codec) {
+  webrtc::Call::Config::BitrateConfig config;
   int bitrate_kbps = 0;
   if (codec.GetParam(kCodecParamMinBitrate, &bitrate_kbps) &&
       bitrate_kbps > 0) {

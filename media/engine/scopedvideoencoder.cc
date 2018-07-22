@@ -12,7 +12,6 @@
 
 #include <vector>
 
-#include "api/video/video_bitrate_allocation.h"
 #include "api/video_codecs/video_encoder.h"
 
 namespace cricket {
@@ -35,9 +34,10 @@ class ScopedVideoEncoder : public webrtc::VideoEncoder {
                  const std::vector<webrtc::FrameType>* frame_types) override;
   int32_t SetChannelParameters(uint32_t packet_loss, int64_t rtt) override;
   int32_t SetRates(uint32_t bitrate, uint32_t framerate) override;
-  int32_t SetRateAllocation(const webrtc::VideoBitrateAllocation& allocation,
+  int32_t SetRateAllocation(const webrtc::BitrateAllocation& allocation,
                             uint32_t framerate) override;
   ScalingSettings GetScalingSettings() const override;
+  int32_t SetPeriodicKeyFrames(bool enable) override;
   bool SupportsNativeHandle() const override;
   const char* ImplementationName() const override;
 
@@ -85,7 +85,7 @@ int32_t ScopedVideoEncoder::SetRates(uint32_t bitrate, uint32_t framerate) {
 }
 
 int32_t ScopedVideoEncoder::SetRateAllocation(
-    const webrtc::VideoBitrateAllocation& allocation,
+    const webrtc::BitrateAllocation& allocation,
     uint32_t framerate) {
   return encoder_->SetRateAllocation(allocation, framerate);
 }
@@ -93,6 +93,10 @@ int32_t ScopedVideoEncoder::SetRateAllocation(
 webrtc::VideoEncoder::ScalingSettings ScopedVideoEncoder::GetScalingSettings()
     const {
   return encoder_->GetScalingSettings();
+}
+
+int32_t ScopedVideoEncoder::SetPeriodicKeyFrames(bool enable) {
+  return encoder_->SetPeriodicKeyFrames(enable);
 }
 
 bool ScopedVideoEncoder::SupportsNativeHandle() const {

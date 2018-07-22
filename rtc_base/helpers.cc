@@ -16,6 +16,7 @@
 #include <openssl/rand.h>
 
 #include "rtc_base/base64.h"
+#include "rtc_base/basictypes.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/timeutils.h"
@@ -47,8 +48,10 @@ class SecureRandomGenerator : public RandomGenerator {
 // A test random generator, for predictable output.
 class TestRandomGenerator : public RandomGenerator {
  public:
-  TestRandomGenerator() : seed_(7) {}
-  ~TestRandomGenerator() override {}
+  TestRandomGenerator() : seed_(7) {
+  }
+  ~TestRandomGenerator() override {
+  }
   bool Init(const void* seed, size_t len) override { return true; }
   bool Generate(void* buf, size_t len) override {
     for (size_t i = 0; i < len; ++i) {
@@ -82,9 +85,8 @@ static const char kUuidDigit17[4] = {'8', '9', 'a', 'b'};
 // This round about way of creating a global RNG is to safe-guard against
 // indeterminant static initialization order.
 std::unique_ptr<RandomGenerator>& GetGlobalRng() {
-  static std::unique_ptr<RandomGenerator>& global_rng =
-      *new std::unique_ptr<RandomGenerator>(new SecureRandomGenerator());
-
+  RTC_DEFINE_STATIC_LOCAL(std::unique_ptr<RandomGenerator>, global_rng,
+                          (new SecureRandomGenerator()));
   return global_rng;
 }
 
@@ -121,9 +123,8 @@ std::string CreateRandomString(size_t len) {
 }
 
 static bool CreateRandomString(size_t len,
-                               const char* table,
-                               int table_size,
-                               std::string* str) {
+                        const char* table, int table_size,
+                        std::string* str) {
   str->clear();
   // Avoid biased modulo division below.
   if (256 % table_size) {
@@ -146,11 +147,10 @@ bool CreateRandomString(size_t len, std::string* str) {
   return CreateRandomString(len, kBase64, 64, str);
 }
 
-bool CreateRandomString(size_t len,
-                        const std::string& table,
+bool CreateRandomString(size_t len, const std::string& table,
                         std::string* str) {
-  return CreateRandomString(len, table.c_str(), static_cast<int>(table.size()),
-                            str);
+  return CreateRandomString(len, table.c_str(),
+                            static_cast<int>(table.size()), str);
 }
 
 bool CreateRandomData(size_t length, std::string* data) {
@@ -213,10 +213,6 @@ uint32_t CreateRandomNonZeroId() {
 double CreateRandomDouble() {
   return CreateRandomId() / (std::numeric_limits<uint32_t>::max() +
                              std::numeric_limits<double>::epsilon());
-}
-
-double GetNextMovingAverage(double prev_average, double cur, double ratio) {
-  return (ratio * prev_average + cur) / (ratio + 1);
 }
 
 }  // namespace rtc

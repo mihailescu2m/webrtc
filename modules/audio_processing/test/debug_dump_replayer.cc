@@ -23,8 +23,8 @@ void MaybeResetBuffer(std::unique_ptr<ChannelBuffer<float>>* buffer,
   auto& buffer_ref = *buffer;
   if (!buffer_ref.get() || buffer_ref->num_frames() != config.num_frames() ||
       buffer_ref->num_channels() != config.num_channels()) {
-    buffer_ref.reset(
-        new ChannelBuffer<float>(config.num_frames(), config.num_channels()));
+    buffer_ref.reset(new ChannelBuffer<float>(config.num_frames(),
+                                             config.num_channels()));
   }
 }
 
@@ -49,9 +49,9 @@ bool DebugDumpReplayer::SetDumpFile(const std::string& filename) {
 }
 
 // Get next event that has not run.
-absl::optional<audioproc::Event> DebugDumpReplayer::GetNextEvent() const {
+rtc::Optional<audioproc::Event> DebugDumpReplayer::GetNextEvent() const {
   if (!has_next_event_)
-    return absl::nullopt;
+    return rtc::nullopt;
   else
     return next_event_;
 }
@@ -193,7 +193,7 @@ void DebugDumpReplayer::MaybeRecreateApm(const audioproc::Config& msg) {
   // We only create APM once, since changes on these fields should not
   // happen in current implementation.
   if (!apm_.get()) {
-    apm_.reset(AudioProcessingBuilder().Create(config));
+    apm_.reset(AudioProcessing::Create(config));
   }
 }
 

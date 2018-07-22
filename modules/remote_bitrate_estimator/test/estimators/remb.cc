@@ -37,7 +37,8 @@ RembBweSender::RembBweSender(int kbps, BitrateObserver* observer, Clock* clock)
                                         1000 * kMaxBitrateKbps);
 }
 
-RembBweSender::~RembBweSender() {}
+RembBweSender::~RembBweSender() {
+}
 
 void RembBweSender::GiveFeedback(const FeedbackPacket& feedback) {
   const RembFeedback& remb_feedback =
@@ -79,7 +80,8 @@ RembReceiver::RembReceiver(int flow_id, bool plot)
   estimator_->SetMinBitrate(kRemoteBitrateEstimatorMinBitrateBps);
 }
 
-RembReceiver::~RembReceiver() {}
+RembReceiver::~RembReceiver() {
+}
 
 void RembReceiver::ReceivePacket(int64_t arrival_time_ms,
                                  const MediaPacket& media_packet) {

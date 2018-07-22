@@ -70,13 +70,15 @@ struct VCMFrameCount {
 class VCMReceiveCallback {
  public:
   virtual int32_t FrameToRender(VideoFrame& videoFrame,  // NOLINT
-                                absl::optional<uint8_t> qp,
+                                rtc::Optional<uint8_t> qp,
                                 VideoContentType content_type) = 0;
 
-  virtual int32_t ReceivedDecodedReferenceFrame(const uint64_t pictureId);
+  virtual int32_t ReceivedDecodedReferenceFrame(const uint64_t pictureId) {
+    return -1;
+  }
   // Called when the current receive codec changes.
-  virtual void OnIncomingPayloadType(int payload_type);
-  virtual void OnDecoderImplementationName(const char* implementation_name);
+  virtual void OnIncomingPayloadType(int payload_type) {}
+  virtual void OnDecoderImplementationName(const char* implementation_name) {}
 
  protected:
   virtual ~VCMReceiveCallback() {}
@@ -106,6 +108,20 @@ class VCMReceiveStatisticsCallback {
   virtual ~VCMReceiveStatisticsCallback() {}
 };
 
+// Callback class used for telling the user about how to configure the FEC,
+// and the rates sent the last second is returned to the VCM.
+class VCMProtectionCallback {
+ public:
+  virtual int ProtectionRequest(const FecProtectionParams* delta_params,
+                                const FecProtectionParams* key_params,
+                                uint32_t* sent_video_rate_bps,
+                                uint32_t* sent_nack_rate_bps,
+                                uint32_t* sent_fec_rate_bps) = 0;
+
+ protected:
+  virtual ~VCMProtectionCallback() {}
+};
+
 // Callback class used for telling the user about what frame type needed to
 // continue decoding.
 // Typically a key frame when the stream has been corrupted in some way.
@@ -129,6 +145,22 @@ class VCMPacketRequestCallback {
 
  protected:
   virtual ~VCMPacketRequestCallback() {}
+};
+
+class NackSender {
+ public:
+  virtual void SendNack(const std::vector<uint16_t>& sequence_numbers) = 0;
+
+ protected:
+  virtual ~NackSender() {}
+};
+
+class KeyFrameRequestSender {
+ public:
+  virtual void RequestKeyFrame() = 0;
+
+ protected:
+  virtual ~KeyFrameRequestSender() {}
 };
 
 }  // namespace webrtc

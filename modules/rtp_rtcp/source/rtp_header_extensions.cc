@@ -43,11 +43,9 @@ bool AbsoluteSendTime::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool AbsoluteSendTime::Write(rtc::ArrayView<uint8_t> data,
-                             uint32_t time_24bits) {
-  RTC_DCHECK_EQ(data.size(), 3);
+bool AbsoluteSendTime::Write(uint8_t* data, uint32_t time_24bits) {
   RTC_DCHECK_LE(time_24bits, 0x00FFFFFF);
-  ByteWriter<uint32_t, 3>::WriteBigEndian(data.data(), time_24bits);
+  ByteWriter<uint32_t, 3>::WriteBigEndian(data, time_24bits);
   return true;
 }
 
@@ -77,10 +75,9 @@ bool AudioLevel::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool AudioLevel::Write(rtc::ArrayView<uint8_t> data,
+bool AudioLevel::Write(uint8_t* data,
                        bool voice_activity,
                        uint8_t audio_level) {
-  RTC_DCHECK_EQ(data.size(), 1);
   RTC_CHECK_LE(audio_level, 0x7f);
   data[0] = (voice_activity ? 0x80 : 0x00) | audio_level;
   return true;
@@ -114,10 +111,9 @@ bool TransmissionOffset::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool TransmissionOffset::Write(rtc::ArrayView<uint8_t> data, int32_t rtp_time) {
-  RTC_DCHECK_EQ(data.size(), 3);
+bool TransmissionOffset::Write(uint8_t* data, int32_t rtp_time) {
   RTC_DCHECK_LE(rtp_time, 0x00ffffff);
-  ByteWriter<int32_t, 3>::WriteBigEndian(data.data(), rtp_time);
+  ByteWriter<int32_t, 3>::WriteBigEndian(data, rtp_time);
   return true;
 }
 
@@ -138,10 +134,8 @@ bool TransportSequenceNumber::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool TransportSequenceNumber::Write(rtc::ArrayView<uint8_t> data,
-                                    uint16_t value) {
-  RTC_DCHECK_EQ(data.size(), 2);
-  ByteWriter<uint16_t>::WriteBigEndian(data.data(), value);
+bool TransportSequenceNumber::Write(uint8_t* data, uint16_t value) {
+  ByteWriter<uint16_t>::WriteBigEndian(data, value);
   return true;
 }
 
@@ -168,9 +162,7 @@ bool VideoOrientation::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool VideoOrientation::Write(rtc::ArrayView<uint8_t> data,
-                             VideoRotation rotation) {
-  RTC_DCHECK_EQ(data.size(), 1);
+bool VideoOrientation::Write(uint8_t* data, VideoRotation rotation) {
   data[0] = ConvertVideoRotationToCVOByte(rotation);
   return true;
 }
@@ -183,8 +175,7 @@ bool VideoOrientation::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool VideoOrientation::Write(rtc::ArrayView<uint8_t> data, uint8_t value) {
-  RTC_DCHECK_EQ(data.size(), 1);
+bool VideoOrientation::Write(uint8_t* data, uint8_t value) {
   data[0] = value;
   return true;
 }
@@ -213,17 +204,15 @@ bool PlayoutDelayLimits::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool PlayoutDelayLimits::Write(rtc::ArrayView<uint8_t> data,
+bool PlayoutDelayLimits::Write(uint8_t* data,
                                const PlayoutDelay& playout_delay) {
-  RTC_DCHECK_EQ(data.size(), 3);
   RTC_DCHECK_LE(0, playout_delay.min_ms);
   RTC_DCHECK_LE(playout_delay.min_ms, playout_delay.max_ms);
   RTC_DCHECK_LE(playout_delay.max_ms, kMaxMs);
   // Convert MS to value to be sent on extension header.
   uint32_t min_delay = playout_delay.min_ms / kGranularityMs;
   uint32_t max_delay = playout_delay.max_ms / kGranularityMs;
-  ByteWriter<uint32_t, 3>::WriteBigEndian(data.data(),
-                                          (min_delay << 12) | max_delay);
+  ByteWriter<uint32_t, 3>::WriteBigEndian(data, (min_delay << 12) | max_delay);
   return true;
 }
 
@@ -250,9 +239,8 @@ bool VideoContentTypeExtension::Parse(rtc::ArrayView<const uint8_t> data,
   return false;
 }
 
-bool VideoContentTypeExtension::Write(rtc::ArrayView<uint8_t> data,
+bool VideoContentTypeExtension::Write(uint8_t* data,
                                       VideoContentType content_type) {
-  RTC_DCHECK_EQ(data.size(), 1);
   data[0] = static_cast<uint8_t>(content_type);
   return true;
 }
@@ -315,38 +303,35 @@ bool VideoTimingExtension::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool VideoTimingExtension::Write(rtc::ArrayView<uint8_t> data,
-                                 const VideoSendTiming& timing) {
-  RTC_DCHECK_EQ(data.size(), 1 + 2 * 6);
-  ByteWriter<uint8_t>::WriteBigEndian(
-      data.data() + VideoSendTiming::kFlagsOffset, timing.flags);
+bool VideoTimingExtension::Write(uint8_t* data, const VideoSendTiming& timing) {
+  ByteWriter<uint8_t>::WriteBigEndian(data + VideoSendTiming::kFlagsOffset,
+                                      timing.flags);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data.data() + VideoSendTiming::kEncodeStartDeltaOffset,
+      data + VideoSendTiming::kEncodeStartDeltaOffset,
       timing.encode_start_delta_ms);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data.data() + VideoSendTiming::kEncodeFinishDeltaOffset,
+      data + VideoSendTiming::kEncodeFinishDeltaOffset,
       timing.encode_finish_delta_ms);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data.data() + VideoSendTiming::kPacketizationFinishDeltaOffset,
+      data + VideoSendTiming::kPacketizationFinishDeltaOffset,
       timing.packetization_finish_delta_ms);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data.data() + VideoSendTiming::kPacerExitDeltaOffset,
+      data + VideoSendTiming::kPacerExitDeltaOffset,
       timing.pacer_exit_delta_ms);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data.data() + VideoSendTiming::kNetworkTimestampDeltaOffset,
+      data + VideoSendTiming::kNetworkTimestampDeltaOffset,
       timing.network_timestamp_delta_ms);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data.data() + VideoSendTiming::kNetwork2TimestampDeltaOffset,
+      data + VideoSendTiming::kNetwork2TimestampDeltaOffset,
       timing.network2_timestamp_delta_ms);
   return true;
 }
 
-bool VideoTimingExtension::Write(rtc::ArrayView<uint8_t> data,
+bool VideoTimingExtension::Write(uint8_t* data,
                                  uint16_t time_delta_ms,
                                  uint8_t offset) {
-  RTC_DCHECK_GE(data.size(), offset + 2);
   RTC_DCHECK_LE(offset, kValueSizeBytes - sizeof(uint16_t));
-  ByteWriter<uint16_t>::WriteBigEndian(data.data() + offset, time_delta_ms);
+  ByteWriter<uint16_t>::WriteBigEndian(data + offset, time_delta_ms);
   return true;
 }
 
@@ -359,12 +344,11 @@ bool BaseRtpStringExtension::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool BaseRtpStringExtension::Write(rtc::ArrayView<uint8_t> data,
+bool BaseRtpStringExtension::Write(uint8_t* data,
                                    const StringRtpHeaderExtension& str) {
-  RTC_DCHECK_EQ(data.size(), str.size());
   RTC_DCHECK_GE(str.size(), 1);
   RTC_DCHECK_LE(str.size(), StringRtpHeaderExtension::kMaxSize);
-  memcpy(data.data(), str.data(), str.size());
+  memcpy(data, str.data(), str.size());
   return true;
 }
 
@@ -380,12 +364,10 @@ bool BaseRtpStringExtension::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool BaseRtpStringExtension::Write(rtc::ArrayView<uint8_t> data,
-                                   const std::string& str) {
-  RTC_DCHECK_EQ(data.size(), str.size());
+bool BaseRtpStringExtension::Write(uint8_t* data, const std::string& str) {
   RTC_DCHECK_GE(str.size(), 1);
   RTC_DCHECK_LE(str.size(), StringRtpHeaderExtension::kMaxSize);
-  memcpy(data.data(), str.data(), str.size());
+  memcpy(data, str.data(), str.size());
   return true;
 }
 

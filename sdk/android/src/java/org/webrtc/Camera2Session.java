@@ -22,11 +22,12 @@ import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
+import android.media.MediaRecorder;
 import android.os.Handler;
-import javax.annotation.Nullable;
 import android.util.Range;
 import android.view.Surface;
-import java.util.Arrays;
+import android.view.WindowManager;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.webrtc.CameraEnumerationAndroid.CaptureFormat;
@@ -44,12 +45,15 @@ class Camera2Session implements CameraSession {
 
   private static enum SessionState { RUNNING, STOPPED }
 
+  private final boolean videoFrameEmitTrialEnabled;
+
   private final Handler cameraThreadHandler;
   private final CreateSessionCallback callback;
   private final Events events;
   private final Context applicationContext;
   private final CameraManager cameraManager;
   private final SurfaceTextureHelper surfaceTextureHelper;
+  private final Surface mediaRecorderSurface;
   private final String cameraId;
   private final int width;
   private final int height;
@@ -63,11 +67,11 @@ class Camera2Session implements CameraSession {
   private CaptureFormat captureFormat;
 
   // Initialized when camera opens
-  @Nullable private CameraDevice cameraDevice;
-  @Nullable private Surface surface;
+  private CameraDevice cameraDevice;
+  private Surface surface;
 
   // Initialized when capture session is created
-  @Nullable private CameraCaptureSession captureSession;
+  private CameraCaptureSession captureSession;
 
   // State
   private SessionState state = SessionState.RUNNING;
@@ -121,11 +125,17 @@ class Camera2Session implements CameraSession {
       Logging.d(TAG, "Camera opened.");
       cameraDevice = camera;
 
-      surfaceTextureHelper.setTextureSize(captureFormat.width, captureFormat.height);
-      surface = new Surface(surfaceTextureHelper.getSurfaceTexture());
+      final SurfaceTexture surfaceTexture = surfaceTextureHelper.getSurfaceTexture();
+      surfaceTexture.setDefaultBufferSize(captureFormat.width, captureFormat.height);
+      surface = new Surface(surfaceTexture);
+      List<Surface> surfaces = new ArrayList<Surface>();
+      surfaces.add(surface);
+      if (mediaRecorderSurface != null) {
+        Logging.d(TAG, "Add MediaRecorder surface to capture session.");
+        surfaces.add(mediaRecorderSurface);
+      }
       try {
-        camera.createCaptureSession(
-            Arrays.asList(surface), new CaptureSessionCallback(), cameraThreadHandler);
+        camera.createCaptureSession(surfaces, new CaptureSessionCallback(), cameraThreadHandler);
       } catch (CameraAccessException e) {
         reportError("Failed to create capture session. " + e);
         return;
@@ -175,6 +185,10 @@ class Camera2Session implements CameraSession {
         chooseFocusMode(captureRequestBuilder);
 
         captureRequestBuilder.addTarget(surface);
+        if (mediaRecorderSurface != null) {
+          Logging.d(TAG, "Add MediaRecorder surface to CaptureRequest.Builder");
+          captureRequestBuilder.addTarget(mediaRecorderSurface);
+        }
         session.setRepeatingRequest(
             captureRequestBuilder.build(), new CameraCaptureCallback(), cameraThreadHandler);
       } catch (CameraAccessException e) {
@@ -182,33 +196,51 @@ class Camera2Session implements CameraSession {
         return;
       }
 
-      surfaceTextureHelper.startListening((VideoFrame frame) -> {
-        checkIsOnCameraThread();
+      surfaceTextureHelper.startListening(
+          new SurfaceTextureHelper.OnTextureFrameAvailableListener() {
+            @Override
+            public void onTextureFrameAvailable(
+                int oesTextureId, float[] transformMatrix, long timestampNs) {
+              checkIsOnCameraThread();
 
-        if (state != SessionState.RUNNING) {
-          Logging.d(TAG, "Texture frame captured but camera is no longer running.");
-          return;
-        }
+              if (state != SessionState.RUNNING) {
+                Logging.d(TAG, "Texture frame captured but camera is no longer running.");
+                surfaceTextureHelper.returnTextureFrame();
+                return;
+              }
 
-        if (!firstFrameReported) {
-          firstFrameReported = true;
-          final int startTimeMs =
-              (int) TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTimeNs);
-          camera2StartTimeMsHistogram.addSample(startTimeMs);
-        }
+              if (!firstFrameReported) {
+                firstFrameReported = true;
+                final int startTimeMs =
+                    (int) TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTimeNs);
+                camera2StartTimeMsHistogram.addSample(startTimeMs);
+              }
 
-        // Undo the mirror that the OS "helps" us with.
-        // http://developer.android.com/reference/android/hardware/Camera.html#setDisplayOrientation(int)
-        // Also, undo camera orientation, we report it as rotation instead.
-        final VideoFrame modifiedFrame =
-            new VideoFrame(CameraSession.createTextureBufferWithModifiedTransformMatrix(
-                               (TextureBufferImpl) frame.getBuffer(),
-                               /* mirror= */ isCameraFrontFacing,
-                               /* rotation= */ -cameraOrientation),
-                /* rotation= */ getFrameOrientation(), frame.getTimestampNs());
-        events.onFrameCaptured(Camera2Session.this, modifiedFrame);
-        modifiedFrame.release();
-      });
+              int rotation = getFrameOrientation();
+              if (isCameraFrontFacing) {
+                // Undo the mirror that the OS "helps" us with.
+                // http://developer.android.com/reference/android/hardware/Camera.html#setDisplayOrientation(int)
+                transformMatrix = RendererCommon.multiplyMatrices(
+                    transformMatrix, RendererCommon.horizontalFlipMatrix());
+              }
+
+              // Undo camera orientation - we report it as rotation instead.
+              transformMatrix =
+                  RendererCommon.rotateTextureMatrix(transformMatrix, -cameraOrientation);
+
+              if (videoFrameEmitTrialEnabled) {
+                VideoFrame.Buffer buffer = surfaceTextureHelper.createTextureBuffer(
+                    captureFormat.width, captureFormat.height,
+                    RendererCommon.convertMatrixToAndroidGraphicsMatrix(transformMatrix));
+                final VideoFrame frame = new VideoFrame(buffer, rotation, timestampNs);
+                events.onFrameCaptured(Camera2Session.this, frame);
+                frame.release();
+              } else {
+                events.onTextureFrameCaptured(Camera2Session.this, captureFormat.width,
+                    captureFormat.height, oesTextureId, transformMatrix, rotation, timestampNs);
+              }
+            }
+          });
       Logging.d(TAG, "Camera device successfully started.");
       callback.onDone(Camera2Session.this);
     }
@@ -271,16 +303,19 @@ class Camera2Session implements CameraSession {
 
   public static void create(CreateSessionCallback callback, Events events,
       Context applicationContext, CameraManager cameraManager,
-      SurfaceTextureHelper surfaceTextureHelper, String cameraId, int width, int height,
-      int framerate) {
+      SurfaceTextureHelper surfaceTextureHelper, MediaRecorder mediaRecorder, String cameraId,
+      int width, int height, int framerate) {
     new Camera2Session(callback, events, applicationContext, cameraManager, surfaceTextureHelper,
-        cameraId, width, height, framerate);
+        mediaRecorder, cameraId, width, height, framerate);
   }
 
   private Camera2Session(CreateSessionCallback callback, Events events, Context applicationContext,
-      CameraManager cameraManager, SurfaceTextureHelper surfaceTextureHelper, String cameraId,
-      int width, int height, int framerate) {
+      CameraManager cameraManager, SurfaceTextureHelper surfaceTextureHelper,
+      MediaRecorder mediaRecorder, String cameraId, int width, int height, int framerate) {
     Logging.d(TAG, "Create new camera2 session on camera " + cameraId);
+    videoFrameEmitTrialEnabled =
+        PeerConnectionFactory.fieldTrialsFindFullName(PeerConnectionFactory.VIDEO_FRAME_EMIT_TRIAL)
+            .equals(PeerConnectionFactory.TRIAL_ENABLED);
 
     constructionTimeNs = System.nanoTime();
 
@@ -290,6 +325,7 @@ class Camera2Session implements CameraSession {
     this.applicationContext = applicationContext;
     this.cameraManager = cameraManager;
     this.surfaceTextureHelper = surfaceTextureHelper;
+    this.mediaRecorderSurface = (mediaRecorder != null) ? mediaRecorder.getSurface() : null;
     this.cameraId = cameraId;
     this.width = width;
     this.height = height;
@@ -406,8 +442,30 @@ class Camera2Session implements CameraSession {
     }
   }
 
+  private int getDeviceOrientation() {
+    int orientation = 0;
+
+    WindowManager wm = (WindowManager) applicationContext.getSystemService(Context.WINDOW_SERVICE);
+    switch (wm.getDefaultDisplay().getRotation()) {
+      case Surface.ROTATION_90:
+        orientation = 90;
+        break;
+      case Surface.ROTATION_180:
+        orientation = 180;
+        break;
+      case Surface.ROTATION_270:
+        orientation = 270;
+        break;
+      case Surface.ROTATION_0:
+      default:
+        orientation = 0;
+        break;
+    }
+    return orientation;
+  }
+
   private int getFrameOrientation() {
-    int rotation = CameraSession.getDeviceOrientation(applicationContext);
+    int rotation = getDeviceOrientation();
     if (!isCameraFrontFacing) {
       rotation = 360 - rotation;
     }

@@ -8,11 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/congestion_controller/include/send_side_congestion_controller.h"
 #include "logging/rtc_event_log/mock/mock_rtc_event_log.h"
 #include "modules/bitrate_controller/include/bitrate_controller.h"
+#include "modules/congestion_controller/congestion_controller_unittests_helper.h"
 #include "modules/congestion_controller/include/mock/mock_congestion_observer.h"
-#include "modules/congestion_controller/rtp/congestion_controller_unittests_helper.h"
+#include "modules/congestion_controller/include/send_side_congestion_controller.h"
 #include "modules/pacing/mock/mock_paced_sender.h"
 #include "modules/pacing/packet_router.h"
 #include "modules/remote_bitrate_estimator/include/bwe_defines.h"
@@ -44,13 +44,11 @@ const uint32_t kInitialBitrateBps = 60000;
 
 namespace test {
 
-class LegacySendSideCongestionControllerTest : public ::testing::Test {
+class SendSideCongestionControllerTest : public ::testing::Test {
  protected:
-  LegacySendSideCongestionControllerTest()
-      : clock_(123456),
-        target_bitrate_observer_(this),
-        bandwidth_observer_(nullptr) {}
-  ~LegacySendSideCongestionControllerTest() override {}
+  SendSideCongestionControllerTest()
+      : clock_(123456), target_bitrate_observer_(this) {}
+  ~SendSideCongestionControllerTest() override {}
 
   void SetUp() override {
     pacer_.reset(new NiceMock<MockPacedSender>());
@@ -87,10 +85,9 @@ class LegacySendSideCongestionControllerTest : public ::testing::Test {
 
   // Allows us to track the target bitrate, without prescribing the exact
   // iterations when this would hapen, like a mock would.
-  class TargetBitrateObserver : public NetworkChangedObserver {
+  class TargetBitrateObserver : public SendSideCongestionController::Observer {
    public:
-    explicit TargetBitrateObserver(
-        LegacySendSideCongestionControllerTest* owner)
+    explicit TargetBitrateObserver(SendSideCongestionControllerTest* owner)
         : owner_(owner) {}
     ~TargetBitrateObserver() override = default;
     void OnNetworkChanged(uint32_t bitrate_bps,
@@ -101,7 +98,7 @@ class LegacySendSideCongestionControllerTest : public ::testing::Test {
     }
 
    private:
-    LegacySendSideCongestionControllerTest* owner_;
+    SendSideCongestionControllerTest* owner_;
   };
 
   void PacketTransmissionAndFeedbackBlock(uint16_t* seq_num,
@@ -142,10 +139,10 @@ class LegacySendSideCongestionControllerTest : public ::testing::Test {
   std::unique_ptr<NiceMock<MockPacedSender>> pacer_;
   std::unique_ptr<SendSideCongestionController> controller_;
 
-  absl::optional<uint32_t> target_bitrate_bps_;
+  rtc::Optional<uint32_t> target_bitrate_bps_;
 };
 
-TEST_F(LegacySendSideCongestionControllerTest, OnNetworkChanged) {
+TEST_F(SendSideCongestionControllerTest, OnNetworkChanged) {
   // Test no change.
   clock_.AdvanceTimeMilliseconds(25);
   controller_->Process();
@@ -163,7 +160,7 @@ TEST_F(LegacySendSideCongestionControllerTest, OnNetworkChanged) {
   controller_->Process();
 }
 
-TEST_F(LegacySendSideCongestionControllerTest, OnSendQueueFull) {
+TEST_F(SendSideCongestionControllerTest, OnSendQueueFull) {
   EXPECT_CALL(*pacer_, ExpectedQueueTimeMs())
       .WillOnce(Return(PacedSender::kMaxQueueLengthMs + 1));
 
@@ -178,8 +175,7 @@ TEST_F(LegacySendSideCongestionControllerTest, OnSendQueueFull) {
   controller_->Process();
 }
 
-TEST_F(LegacySendSideCongestionControllerTest,
-       OnSendQueueFullAndEstimateChange) {
+TEST_F(SendSideCongestionControllerTest, OnSendQueueFullAndEstimateChange) {
   EXPECT_CALL(*pacer_, ExpectedQueueTimeMs())
       .WillOnce(Return(PacedSender::kMaxQueueLengthMs + 1));
   EXPECT_CALL(observer_, OnNetworkChanged(0, _, _, _));
@@ -203,7 +199,7 @@ TEST_F(LegacySendSideCongestionControllerTest,
   controller_->Process();
 }
 
-TEST_F(LegacySendSideCongestionControllerTest, SignalNetworkState) {
+TEST_F(SendSideCongestionControllerTest, SignalNetworkState) {
   EXPECT_CALL(observer_, OnNetworkChanged(0, _, _, _));
   controller_->SignalNetworkState(kNetworkDown);
 
@@ -214,7 +210,7 @@ TEST_F(LegacySendSideCongestionControllerTest, SignalNetworkState) {
   controller_->SignalNetworkState(kNetworkDown);
 }
 
-TEST_F(LegacySendSideCongestionControllerTest, OnNetworkRouteChanged) {
+TEST_F(SendSideCongestionControllerTest, OnNetworkRouteChanged) {
   int new_bitrate = 200000;
   testing::Mock::VerifyAndClearExpectations(pacer_.get());
   EXPECT_CALL(observer_, OnNetworkChanged(new_bitrate, _, _, _));
@@ -234,7 +230,7 @@ TEST_F(LegacySendSideCongestionControllerTest, OnNetworkRouteChanged) {
   controller_->OnNetworkRouteChanged(route, -1, -1, -1);
 }
 
-TEST_F(LegacySendSideCongestionControllerTest, OldFeedback) {
+TEST_F(SendSideCongestionControllerTest, OldFeedback) {
   int new_bitrate = 200000;
   testing::Mock::VerifyAndClearExpectations(pacer_.get());
   EXPECT_CALL(observer_, OnNetworkChanged(new_bitrate, _, _, _));
@@ -277,7 +273,7 @@ TEST_F(LegacySendSideCongestionControllerTest, OldFeedback) {
   controller_->OnNetworkRouteChanged(route, -1, -1, -1);
 }
 
-TEST_F(LegacySendSideCongestionControllerTest,
+TEST_F(SendSideCongestionControllerTest,
        SignalNetworkStateAndQueueIsFullAndEstimateChange) {
   // Send queue is full
   EXPECT_CALL(*pacer_, ExpectedQueueTimeMs())
@@ -306,7 +302,7 @@ TEST_F(LegacySendSideCongestionControllerTest,
   controller_->Process();
 }
 
-TEST_F(LegacySendSideCongestionControllerTest, GetPacerQueuingDelayMs) {
+TEST_F(SendSideCongestionControllerTest, GetPacerQueuingDelayMs) {
   EXPECT_CALL(observer_, OnNetworkChanged(_, _, _, _)).Times(AtLeast(1));
 
   const int64_t kQueueTimeMs = 123;
@@ -322,7 +318,7 @@ TEST_F(LegacySendSideCongestionControllerTest, GetPacerQueuingDelayMs) {
   EXPECT_EQ(kQueueTimeMs, controller_->GetPacerQueuingDelayMs());
 }
 
-TEST_F(LegacySendSideCongestionControllerTest, GetProbingInterval) {
+TEST_F(SendSideCongestionControllerTest, GetProbingInterval) {
   clock_.AdvanceTimeMilliseconds(25);
   controller_->Process();
 
@@ -333,7 +329,7 @@ TEST_F(LegacySendSideCongestionControllerTest, GetProbingInterval) {
   controller_->Process();
 }
 
-TEST_F(LegacySendSideCongestionControllerTest, ProbeOnRouteChange) {
+TEST_F(SendSideCongestionControllerTest, ProbeOnRouteChange) {
   testing::Mock::VerifyAndClearExpectations(pacer_.get());
   EXPECT_CALL(*pacer_, CreateProbeCluster(kInitialBitrateBps * 6));
   EXPECT_CALL(*pacer_, CreateProbeCluster(kInitialBitrateBps * 12));
@@ -346,7 +342,7 @@ TEST_F(LegacySendSideCongestionControllerTest, ProbeOnRouteChange) {
 
 // Estimated bitrate reduced when the feedbacks arrive with such a long delay,
 // that the send-time-history no longer holds the feedbacked packets.
-TEST_F(LegacySendSideCongestionControllerTest, LongFeedbackDelays) {
+TEST_F(SendSideCongestionControllerTest, LongFeedbackDelays) {
   TargetBitrateTrackingSetup();
 
   const int64_t kFeedbackTimeoutMs = 60001;
@@ -388,7 +384,7 @@ TEST_F(LegacySendSideCongestionControllerTest, LongFeedbackDelays) {
 
     // Check that packets have timed out.
     for (PacketFeedback& packet : packets) {
-      packet.send_time_ms = PacketFeedback::kNoSendTime;
+      packet.send_time_ms = -1;
       packet.payload_size = 0;
       packet.pacing_info = PacedPacketInfo();
     }
@@ -437,7 +433,7 @@ TEST_F(LegacySendSideCongestionControllerTest, LongFeedbackDelays) {
 
 // Bandwidth estimation is updated when feedbacks are received.
 // Feedbacks which show an increasing delay cause the estimation to be reduced.
-TEST_F(LegacySendSideCongestionControllerTest, UpdatesDelayBasedEstimate) {
+TEST_F(SendSideCongestionControllerTest, UpdatesDelayBasedEstimate) {
   TargetBitrateTrackingSetup();
 
   const int64_t kRunTimeMs = 6000;
@@ -456,7 +452,7 @@ TEST_F(LegacySendSideCongestionControllerTest, UpdatesDelayBasedEstimate) {
   EXPECT_LT(*target_bitrate_bps_, bitrate_before_delay);
 }
 
-TEST_F(LegacySendSideCongestionControllerTest, PacerQueueEncodeRatePushback) {
+TEST_F(SendSideCongestionControllerTest, PacerQueueEncodeRatePushback) {
   ScopedFieldTrials pushback_field_trial(
       "WebRTC-PacerPushbackExperiment/Enabled/");
   SetUp();

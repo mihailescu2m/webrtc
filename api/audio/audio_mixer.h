@@ -13,7 +13,7 @@
 
 #include <memory>
 
-#include "api/audio/audio_frame.h"
+#include "modules/include/module_common_types.h"
 #include "rtc_base/refcount.h"
 
 namespace webrtc {

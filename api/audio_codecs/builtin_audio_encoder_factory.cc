@@ -33,8 +33,7 @@ namespace {
 template <typename T>
 struct NotAdvertised {
   using Config = typename T::Config;
-  static absl::optional<Config> SdpToConfig(
-      const SdpAudioFormat& audio_format) {
+  static rtc::Optional<Config> SdpToConfig(const SdpAudioFormat& audio_format) {
     return T::SdpToConfig(audio_format);
   }
   static void AppendSupportedEncoders(std::vector<AudioCodecSpec>* specs) {
@@ -43,11 +42,9 @@ struct NotAdvertised {
   static AudioCodecInfo QueryAudioEncoder(const Config& config) {
     return T::QueryAudioEncoder(config);
   }
-  static std::unique_ptr<AudioEncoder> MakeAudioEncoder(
-      const Config& config,
-      int payload_type,
-      absl::optional<AudioCodecPairId> codec_pair_id = absl::nullopt) {
-    return T::MakeAudioEncoder(config, payload_type, codec_pair_id);
+  static std::unique_ptr<AudioEncoder> MakeAudioEncoder(const Config& config,
+                                                        int payload_type) {
+    return T::MakeAudioEncoder(config, payload_type);
   }
 };
 

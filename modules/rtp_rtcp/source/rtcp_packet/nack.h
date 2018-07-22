@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "modules/rtp_rtcp/source/rtcp_packet/rtpfb.h"
+#include "rtc_base/basictypes.h"
 
 namespace webrtc {
 namespace rtcp {
@@ -37,7 +38,7 @@ class Nack : public Rtpfb {
   bool Create(uint8_t* packet,
               size_t* index,
               size_t max_length,
-              PacketReadyCallback callback) const override;
+              RtcpPacket::PacketReadyCallback* callback) const override;
 
  private:
   static constexpr size_t kNackItemLength = 4;

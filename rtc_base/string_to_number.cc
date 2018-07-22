@@ -8,17 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "rtc_base/string_to_number.h"
-
 #include <cerrno>
 #include <cstdlib>
 
-#include "rtc_base/checks.h"
+#include "rtc_base/string_to_number.h"
 
 namespace rtc {
 namespace string_to_number_internal {
 
-absl::optional<signed_type> ParseSigned(const char* str, int base) {
+rtc::Optional<signed_type> ParseSigned(const char* str, int base) {
   RTC_DCHECK(str);
   if (isdigit(str[0]) || str[0] == '-') {
     char* end = nullptr;
@@ -28,10 +26,10 @@ absl::optional<signed_type> ParseSigned(const char* str, int base) {
       return value;
     }
   }
-  return absl::nullopt;
+  return rtc::nullopt;
 }
 
-absl::optional<unsigned_type> ParseUnsigned(const char* str, int base) {
+rtc::Optional<unsigned_type> ParseUnsigned(const char* str, int base) {
   RTC_DCHECK(str);
   if (isdigit(str[0]) || str[0] == '-') {
     // Explicitly discard negative values. std::strtoull parsing causes unsigned
@@ -45,7 +43,7 @@ absl::optional<unsigned_type> ParseUnsigned(const char* str, int base) {
       return value;
     }
   }
-  return absl::nullopt;
+  return rtc::nullopt;
 }
 
 }  // namespace string_to_number_internal

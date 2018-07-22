@@ -19,7 +19,8 @@
 
 namespace webrtc {
 
-SharedXDisplay::SharedXDisplay(Display* display) : display_(display) {
+SharedXDisplay::SharedXDisplay(Display* display)
+  : display_(display) {
   RTC_DCHECK(display_);
 }
 

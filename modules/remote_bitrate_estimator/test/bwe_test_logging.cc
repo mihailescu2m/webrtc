@@ -34,21 +34,16 @@ static std::string ToString(uint32_t v) {
   return ss.str();
 }
 
-Logging::ThreadState::ThreadState() = default;
-Logging::ThreadState::~ThreadState() = default;
-
 Logging::Context::Context(uint32_t name, int64_t timestamp_ms, bool enabled) {
   Logging::GetInstance()->PushState(ToString(name), timestamp_ms, enabled);
 }
 
-Logging::Context::Context(const std::string& name,
-                          int64_t timestamp_ms,
+Logging::Context::Context(const std::string& name, int64_t timestamp_ms,
                           bool enabled) {
   Logging::GetInstance()->PushState(name, timestamp_ms, enabled);
 }
 
-Logging::Context::Context(const char* name,
-                          int64_t timestamp_ms,
+Logging::Context::Context(const char* name, int64_t timestamp_ms,
                           bool enabled) {
   Logging::GetInstance()->PushState(name, timestamp_ms, enabled);
 }
@@ -206,16 +201,18 @@ void Logging::PlotLabel(int figure,
   }
 }
 
-Logging::Logging() : thread_map_() {}
-
-Logging::~Logging() = default;
+Logging::Logging()
+    : thread_map_() {
+}
 
 Logging::State::State() : tag(""), timestamp_ms(0), enabled(true) {}
 
-Logging::State::State(const std::string& tag,
-                      int64_t timestamp_ms,
+Logging::State::State(const std::string& tag, int64_t timestamp_ms,
                       bool enabled)
-    : tag(tag), timestamp_ms(timestamp_ms), enabled(enabled) {}
+    : tag(tag),
+      timestamp_ms(timestamp_ms),
+      enabled(enabled) {
+}
 
 void Logging::State::MergePrevious(const State& previous) {
   if (tag.empty()) {
@@ -227,8 +224,7 @@ void Logging::State::MergePrevious(const State& previous) {
   enabled = previous.enabled && enabled;
 }
 
-void Logging::PushState(const std::string& append_to_tag,
-                        int64_t timestamp_ms,
+void Logging::PushState(const std::string& append_to_tag, int64_t timestamp_ms,
                         bool enabled) {
   rtc::CritScope cs(&crit_sect_);
   State new_state(append_to_tag, timestamp_ms, enabled);

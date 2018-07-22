@@ -9,7 +9,6 @@
  */
 
 #include "modules/audio_device/mac/audio_device_mac.h"
-#include "absl/memory/memory.h"
 #include "modules/audio_device/audio_device_config.h"
 #include "modules/audio_device/mac/portaudio/pa_ringbuffer.h"
 #include "rtc_base/arraysize.h"
@@ -133,6 +132,7 @@ AudioDeviceMac::AudioDeviceMac()
       _playing(false),
       _recIsInitialized(false),
       _playIsInitialized(false),
+      _AGC(false),
       _renderDeviceIsAlive(1),
       _captureDeviceIsAlive(1),
       _twoDevices(true),
@@ -149,7 +149,8 @@ AudioDeviceMac::AudioDeviceMac()
       _paRenderBuffer(NULL),
       _captureBufSizeSamples(0),
       _renderBufSizeSamples(0),
-      prev_key_state_() {
+      prev_key_state_(),
+      get_mic_volume_counter_ms_(0) {
   RTC_LOG(LS_INFO) << __FUNCTION__ << " created";
 
   RTC_DCHECK(&_stopEvent != NULL);
@@ -335,6 +336,8 @@ AudioDeviceGeneric::InitStatus AudioDeviceMac::Init() {
       _macBookPro = true;
     }
   }
+
+  get_mic_volume_counter_ms_ = 0;
 
   _initialized = true;
 
@@ -728,6 +731,16 @@ int32_t AudioDeviceMac::StereoPlayout(bool& enabled) const {
     enabled = false;
 
   return 0;
+}
+
+int32_t AudioDeviceMac::SetAGC(bool enable) {
+  _AGC = enable;
+
+  return 0;
+}
+
+bool AudioDeviceMac::AGC() const {
+  return _AGC;
 }
 
 int32_t AudioDeviceMac::MicrophoneVolumeIsAvailable(bool& available) {
@@ -1565,8 +1578,8 @@ int32_t AudioDeviceMac::GetNumberDevices(const AudioObjectPropertyScope scope,
     return 0;
   }
 
+  AudioDeviceID* deviceIds = (AudioDeviceID*)malloc(size);
   UInt32 numberDevices = size / sizeof(AudioDeviceID);
-  const auto deviceIds = absl::make_unique<AudioDeviceID[]>(numberDevices);
   AudioBufferList* bufferList = NULL;
   UInt32 numberScopedDevices = 0;
 
@@ -1597,9 +1610,8 @@ int32_t AudioDeviceMac::GetNumberDevices(const AudioObjectPropertyScope scope,
   // Then list the rest of the devices
   bool listOK = true;
 
-  WEBRTC_CA_LOG_ERR(AudioObjectGetPropertyData(kAudioObjectSystemObject,
-                                               &propertyAddress, 0, NULL, &size,
-                                               deviceIds.get()));
+  WEBRTC_CA_LOG_ERR(AudioObjectGetPropertyData(
+      kAudioObjectSystemObject, &propertyAddress, 0, NULL, &size, deviceIds));
   if (err != noErr) {
     listOK = false;
   } else {
@@ -1643,11 +1655,23 @@ int32_t AudioDeviceMac::GetNumberDevices(const AudioObjectPropertyScope scope,
   }
 
   if (!listOK) {
+    if (deviceIds) {
+      free(deviceIds);
+      deviceIds = NULL;
+    }
+
     if (bufferList) {
       free(bufferList);
       bufferList = NULL;
     }
+
     return -1;
+  }
+
+  // Happy ending
+  if (deviceIds) {
+    free(deviceIds);
+    deviceIds = NULL;
   }
 
   return numberScopedDevices;
@@ -2470,6 +2494,8 @@ bool AudioDeviceMac::CaptureWorkerThread() {
 
   // TODO(xians): what if the returned size is incorrect?
   if (size == ENGINE_REC_BUF_SIZE_IN_SAMPLES) {
+    uint32_t currentMicLevel(0);
+    uint32_t newMicLevel(0);
     int32_t msecOnPlaySide;
     int32_t msecOnRecordSide;
 
@@ -2489,12 +2515,43 @@ bool AudioDeviceMac::CaptureWorkerThread() {
     // store the recorded buffer (no action will be taken if the
     // #recorded samples is not a full buffer)
     _ptrAudioBuffer->SetRecordedBuffer((int8_t*)&recordBuffer, (uint32_t)size);
-    _ptrAudioBuffer->SetVQEData(msecOnPlaySide, msecOnRecordSide);
+
+    if (AGC()) {
+      // Use mod to ensure we check the volume on the first pass.
+      if (get_mic_volume_counter_ms_ % kGetMicVolumeIntervalMs == 0) {
+        get_mic_volume_counter_ms_ = 0;
+        // store current mic level in the audio buffer if AGC is enabled
+        if (MicrophoneVolume(currentMicLevel) == 0) {
+          // this call does not affect the actual microphone volume
+          _ptrAudioBuffer->SetCurrentMicLevel(currentMicLevel);
+        }
+      }
+      get_mic_volume_counter_ms_ += kBufferSizeMs;
+    }
+
+    _ptrAudioBuffer->SetVQEData(msecOnPlaySide, msecOnRecordSide, 0);
+
     _ptrAudioBuffer->SetTypingStatus(KeyPressed());
 
     // deliver recorded samples at specified sample rate, mic level etc.
     // to the observer using callback
     _ptrAudioBuffer->DeliverRecordedData();
+
+    if (AGC()) {
+      newMicLevel = _ptrAudioBuffer->NewMicLevel();
+      if (newMicLevel != 0) {
+        // The VQE will only deliver non-zero microphone levels when
+        // a change is needed.
+        // Set this new mic level (received from the observer as return
+        // value in the callback).
+        RTC_LOG(LS_VERBOSE) << "AGC change of volume: old=" << currentMicLevel
+                            << " => new=" << newMicLevel;
+        if (SetMicrophoneVolume(newMicLevel) == -1) {
+          RTC_LOG(LS_WARNING)
+              << "the required modification of the microphone volume failed";
+        }
+      }
+    }
   }
 
   return true;

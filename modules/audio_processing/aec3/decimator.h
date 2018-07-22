@@ -30,8 +30,7 @@ class Decimator {
 
  private:
   const size_t down_sampling_factor_;
-  CascadedBiQuadFilter anti_aliasing_filter_;
-  CascadedBiQuadFilter noise_reduction_filter_;
+  CascadedBiQuadFilter low_pass_filter_;
 
   RTC_DISALLOW_COPY_AND_ASSIGN(Decimator);
 };

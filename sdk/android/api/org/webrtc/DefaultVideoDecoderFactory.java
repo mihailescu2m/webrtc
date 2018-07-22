@@ -10,45 +10,22 @@
 
 package org.webrtc;
 
-import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.List;
-
-/** Helper class that combines HW and SW decoders. */
 public class DefaultVideoDecoderFactory implements VideoDecoderFactory {
-  private final VideoDecoderFactory hardwareVideoDecoderFactory;
-  private final VideoDecoderFactory softwareVideoDecoderFactory = new SoftwareVideoDecoderFactory();
+  private final HardwareVideoDecoderFactory hardwareVideoDecoderFactory;
+  private final SoftwareVideoDecoderFactory softwareVideoDecoderFactory;
 
-  /** Create decoder factory using default hardware decoder factory. */
   public DefaultVideoDecoderFactory(EglBase.Context eglContext) {
-    this.hardwareVideoDecoderFactory = new HardwareVideoDecoderFactory(eglContext);
-  }
-
-  /** Create decoder factory using explicit hardware decoder factory. */
-  DefaultVideoDecoderFactory(VideoDecoderFactory hardwareVideoDecoderFactory) {
-    this.hardwareVideoDecoderFactory = hardwareVideoDecoderFactory;
+    hardwareVideoDecoderFactory =
+        new HardwareVideoDecoderFactory(eglContext, false /* fallbackToSoftware */);
+    softwareVideoDecoderFactory = new SoftwareVideoDecoderFactory();
   }
 
   @Override
-  public @Nullable VideoDecoder createDecoder(VideoCodecInfo codecType) {
-    final VideoDecoder softwareDecoder = softwareVideoDecoderFactory.createDecoder(codecType);
-    final VideoDecoder hardwareDecoder = hardwareVideoDecoderFactory.createDecoder(codecType);
-    if (hardwareDecoder != null && softwareDecoder != null) {
-      // Both hardware and software supported, wrap it in a software fallback
-      return new VideoDecoderFallback(
-          /* fallback= */ softwareDecoder, /* primary= */ hardwareDecoder);
+  public VideoDecoder createDecoder(String codecType) {
+    VideoDecoder decoder = hardwareVideoDecoderFactory.createDecoder(codecType);
+    if (decoder != null) {
+      return decoder;
     }
-    return hardwareDecoder != null ? hardwareDecoder : softwareDecoder;
-  }
-
-  @Override
-  public VideoCodecInfo[] getSupportedCodecs() {
-    LinkedHashSet<VideoCodecInfo> supportedCodecInfos = new LinkedHashSet<VideoCodecInfo>();
-
-    supportedCodecInfos.addAll(Arrays.asList(softwareVideoDecoderFactory.getSupportedCodecs()));
-    supportedCodecInfos.addAll(Arrays.asList(hardwareVideoDecoderFactory.getSupportedCodecs()));
-
-    return supportedCodecInfos.toArray(new VideoCodecInfo[supportedCodecInfos.size()]);
+    return softwareVideoDecoderFactory.createDecoder(codecType);
   }
 }

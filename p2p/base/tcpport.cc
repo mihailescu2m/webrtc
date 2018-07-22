@@ -66,8 +66,7 @@
 
 #include "p2p/base/tcpport.h"
 
-#include <vector>
-
+#include "p2p/base/common.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 
@@ -140,7 +139,8 @@ Connection* TCPPort::CreateConnection(const Candidate& address,
   }
 
   TCPConnection* conn = NULL;
-  if (rtc::AsyncPacketSocket* socket = GetIncoming(address.address(), true)) {
+  if (rtc::AsyncPacketSocket* socket =
+      GetIncoming(address.address(), true)) {
     // Incoming connection; we already created a socket and connected signals,
     // so we need to hand off the "read packet" responsibility to
     // TCPConnection.
@@ -173,8 +173,7 @@ void TCPPort::PrepareAddress() {
                  TCPTYPE_PASSIVE_STR, LOCAL_PORT_TYPE,
                  ICE_TYPE_PREFERENCE_HOST_TCP, 0, "", true);
   } else {
-    RTC_LOG(LS_INFO) << ToString()
-                     << ": Not listening due to firewall restrictions.";
+    LOG_J(LS_INFO, this) << "Not listening due to firewall restrictions.";
     // Note: We still add the address, since otherwise the remote side won't
     // recognize our incoming TCP connections. According to
     // https://tools.ietf.org/html/rfc6544#section-4.5, for active candidate,
@@ -190,12 +189,11 @@ void TCPPort::PrepareAddress() {
   }
 }
 
-int TCPPort::SendTo(const void* data,
-                    size_t size,
+int TCPPort::SendTo(const void* data, size_t size,
                     const rtc::SocketAddress& addr,
                     const rtc::PacketOptions& options,
                     bool payload) {
-  rtc::AsyncPacketSocket* socket = NULL;
+  rtc::AsyncPacketSocket * socket = NULL;
   TCPConnection* conn = static_cast<TCPConnection*>(GetConnection(addr));
 
   // For Connection, this is the code path used by Ping() to establish
@@ -211,21 +209,19 @@ int TCPPort::SendTo(const void* data,
     socket = GetIncoming(addr);
   }
   if (!socket) {
-    RTC_LOG(LS_ERROR) << ToString()
-                      << ": Attempted to send to an unknown destination: "
-                      << addr.ToSensitiveString();
+    LOG_J(LS_ERROR, this) << "Attempted to send to an unknown destination, "
+                          << addr.ToSensitiveString();
     return SOCKET_ERROR;  // TODO(tbd): Set error_
   }
-  rtc::PacketOptions modified_options(options);
-  CopyPortInformationToPacketInfo(&modified_options.info_signaled_after_sent);
-  int sent = socket->Send(data, size, modified_options);
+
+  int sent = socket->Send(data, size, options);
   if (sent < 0) {
     error_ = socket->GetError();
     // Error from this code path for a Connection (instead of from a bare
     // socket) will not trigger reconnecting. In theory, this shouldn't matter
     // as OnClose should always be called and set connected to false.
-    RTC_LOG(LS_ERROR) << ToString() << ": TCP send of " << size
-                      << " bytes failed with error " << error_;
+    LOG_J(LS_ERROR, this) << "TCP send of " << size
+                          << " bytes failed with error " << error_;
   }
   return sent;
 }
@@ -269,8 +265,8 @@ void TCPPort::OnNewConnection(rtc::AsyncPacketSocket* socket,
   incoming.socket->SignalReadyToSend.connect(this, &TCPPort::OnReadyToSend);
   incoming.socket->SignalSentPacket.connect(this, &TCPPort::OnSentPacket);
 
-  RTC_LOG(LS_VERBOSE) << ToString() << ": Accepted connection from "
-                      << incoming.addr.ToSensitiveString();
+  LOG_J(LS_VERBOSE, this) << "Accepted connection from "
+                          << incoming.addr.ToSensitiveString();
   incoming_.push_back(incoming);
 }
 
@@ -279,17 +275,16 @@ void TCPPort::TryCreateServerSocket() {
       rtc::SocketAddress(Network()->GetBestIP(), 0), min_port(), max_port(),
       false /* ssl */);
   if (!socket_) {
-    RTC_LOG(LS_WARNING)
-        << ToString()
-        << ": TCP server socket creation failed; continuing anyway.";
+    LOG_J(LS_WARNING, this)
+        << "TCP server socket creation failed; continuing anyway.";
     return;
   }
   socket_->SignalNewConnection.connect(this, &TCPPort::OnNewConnection);
   socket_->SignalAddressReady.connect(this, &TCPPort::OnAddressReady);
 }
 
-rtc::AsyncPacketSocket* TCPPort::GetIncoming(const rtc::SocketAddress& addr,
-                                             bool remove) {
+rtc::AsyncPacketSocket* TCPPort::GetIncoming(
+    const rtc::SocketAddress& addr, bool remove) {
   rtc::AsyncPacketSocket* socket = NULL;
   for (std::list<Incoming>::iterator it = incoming_.begin();
        it != incoming_.end(); ++it) {
@@ -304,8 +299,7 @@ rtc::AsyncPacketSocket* TCPPort::GetIncoming(const rtc::SocketAddress& addr,
 }
 
 void TCPPort::OnReadPacket(rtc::AsyncPacketSocket* socket,
-                           const char* data,
-                           size_t size,
+                           const char* data, size_t size,
                            const rtc::SocketAddress& remote_addr,
                            const rtc::PacketTime& packet_time) {
   Port::OnReadPacket(data, size, remote_addr, PROTO_TCP);
@@ -327,10 +321,6 @@ void TCPPort::OnAddressReady(rtc::AsyncPacketSocket* socket,
              0, "", true);
 }
 
-// TODO(qingsi): |CONNECTION_WRITE_CONNECT_TIMEOUT| is overriden by
-// |ice_unwritable_timeout| in IceConfig when determining the writability state.
-// Replace this constant with the config parameter assuming the default value if
-// we decide it is also applicable here.
 TCPConnection::TCPConnection(TCPPort* port,
                              const Candidate& candidate,
                              rtc::AsyncPacketSocket* socket)
@@ -346,24 +336,22 @@ TCPConnection::TCPConnection(TCPPort* port,
   } else {
     // Incoming connections should match one of the network addresses. Same as
     // what's being checked in OnConnect, but just DCHECKing here.
-    RTC_LOG(LS_VERBOSE) << ToString() << ": socket ipaddr: "
-                        << socket_->GetLocalAddress().ToString()
-                        << ", port() Network:" << port->Network()->ToString();
+    LOG_J(LS_VERBOSE, this)
+        << "socket ipaddr: " << socket_->GetLocalAddress().ToString()
+        << ", port() Network:" << port->Network()->ToString();
     const std::vector<rtc::InterfaceAddress>& desired_addresses =
         port_->Network()->GetIPs();
-    RTC_DCHECK(std::find_if(desired_addresses.begin(), desired_addresses.end(),
-                            [this](const rtc::InterfaceAddress& addr) {
-                              return socket_->GetLocalAddress().ipaddr() ==
-                                     addr;
-                            }) != desired_addresses.end());
+    RTC_DCHECK(std::find(desired_addresses.begin(), desired_addresses.end(),
+                         socket_->GetLocalAddress().ipaddr()) !=
+               desired_addresses.end());
     ConnectSocketSignals(socket);
   }
 }
 
-TCPConnection::~TCPConnection() {}
+TCPConnection::~TCPConnection() {
+}
 
-int TCPConnection::Send(const void* data,
-                        size_t size,
+int TCPConnection::Send(const void* data, size_t size,
                         const rtc::PacketOptions& options) {
   if (!socket_) {
     error_ = ENOTCONN;
@@ -382,15 +370,12 @@ int TCPConnection::Send(const void* data,
   // Note that this is important to put this after the previous check to give
   // the connection a chance to reconnect.
   if (pretending_to_be_writable_ || write_state() != STATE_WRITABLE) {
-    // TODO(?): Should STATE_WRITE_TIMEOUT return a non-blocking error?
+    // TODO: Should STATE_WRITE_TIMEOUT return a non-blocking error?
     error_ = ENOTCONN;
     return SOCKET_ERROR;
   }
   stats_.sent_total_packets++;
-  rtc::PacketOptions modified_options(options);
-  static_cast<TCPPort*>(port_)->CopyPortInformationToPacketInfo(
-      &modified_options.info_signaled_after_sent);
-  int sent = socket_->Send(data, size, modified_options);
+  int sent = socket_->Send(data, size, options);
   if (sent < 0) {
     stats_.sent_discarded_packets++;
     error_ = socket_->GetError();
@@ -438,31 +423,29 @@ void TCPConnection::OnConnect(rtc::AsyncPacketSocket* socket) {
   const rtc::SocketAddress& socket_address = socket->GetLocalAddress();
   const std::vector<rtc::InterfaceAddress>& desired_addresses =
       port_->Network()->GetIPs();
-  if (std::find_if(desired_addresses.begin(), desired_addresses.end(),
-                   [socket_address](const rtc::InterfaceAddress& addr) {
-                     return socket_address.ipaddr() == addr;
-                   }) != desired_addresses.end()) {
-    RTC_LOG(LS_VERBOSE) << ToString() << ": Connection established to "
-                        << socket->GetRemoteAddress().ToSensitiveString();
+  if (std::find(desired_addresses.begin(), desired_addresses.end(),
+                socket_address.ipaddr()) != desired_addresses.end()) {
+    LOG_J(LS_VERBOSE, this) << "Connection established to "
+                            << socket->GetRemoteAddress().ToSensitiveString();
   } else {
     if (socket->GetLocalAddress().IsLoopbackIP()) {
       RTC_LOG(LS_WARNING) << "Socket is bound to the address:"
                           << socket_address.ipaddr().ToString()
-                          << ", rather than an address associated with network:"
+                          << ", rather then an address associated with network:"
                           << port_->Network()->ToString()
                           << ". Still allowing it since it's localhost.";
     } else if (IPIsAny(port_->Network()->GetBestIP())) {
       RTC_LOG(LS_WARNING)
           << "Socket is bound to the address:"
           << socket_address.ipaddr().ToString()
-          << ", rather than an address associated with network:"
+          << ", rather then an address associated with network:"
           << port_->Network()->ToString()
           << ". Still allowing it since it's the 'any' address"
-             ", possibly caused by multiple_routes being disabled.";
+          << ", possibly caused by multiple_routes being disabled.";
     } else {
       RTC_LOG(LS_WARNING) << "Dropping connection as TCP socket bound to IP "
                           << socket_address.ipaddr().ToString()
-                          << ", rather than an address associated with network:"
+                          << ", rather then an address associated with network:"
                           << port_->Network()->ToString();
       OnClose(socket, 0);
       return;
@@ -476,7 +459,7 @@ void TCPConnection::OnConnect(rtc::AsyncPacketSocket* socket) {
 
 void TCPConnection::OnClose(rtc::AsyncPacketSocket* socket, int error) {
   RTC_DCHECK(socket == socket_.get());
-  RTC_LOG(LS_INFO) << ToString() << ": Connection closed with error " << error;
+  LOG_J(LS_INFO, this) << "Connection closed with error " << error;
 
   // Guard against the condition where IPC socket will call OnClose for every
   // packet it can't send.
@@ -523,19 +506,17 @@ void TCPConnection::MaybeReconnect() {
     return;
   }
 
-  RTC_LOG(LS_INFO) << ToString()
-                   << ": TCP Connection with remote is closed, "
-                      "trying to reconnect";
+  LOG_J(LS_INFO, this) << "TCP Connection with remote is closed, "
+                       << "trying to reconnect";
 
   CreateOutgoingTcpSocket();
   error_ = EPIPE;
 }
 
-void TCPConnection::OnReadPacket(rtc::AsyncPacketSocket* socket,
-                                 const char* data,
-                                 size_t size,
-                                 const rtc::SocketAddress& remote_addr,
-                                 const rtc::PacketTime& packet_time) {
+void TCPConnection::OnReadPacket(
+  rtc::AsyncPacketSocket* socket, const char* data, size_t size,
+  const rtc::SocketAddress& remote_addr,
+  const rtc::PacketTime& packet_time) {
   RTC_DCHECK(socket == socket_.get());
   Connection::OnReadPacket(data, size, packet_time);
 }
@@ -556,16 +537,15 @@ void TCPConnection::CreateOutgoingTcpSocket() {
       remote_candidate().address(), port()->proxy(), port()->user_agent(),
       opts));
   if (socket_) {
-    RTC_LOG(LS_VERBOSE) << ToString() << ": Connecting from "
-                        << socket_->GetLocalAddress().ToSensitiveString()
-                        << " to "
-                        << remote_candidate().address().ToSensitiveString();
+    LOG_J(LS_VERBOSE, this)
+        << "Connecting from " << socket_->GetLocalAddress().ToSensitiveString()
+        << " to " << remote_candidate().address().ToSensitiveString();
     set_connected(false);
     connection_pending_ = true;
     ConnectSocketSignals(socket_.get());
   } else {
-    RTC_LOG(LS_WARNING) << ToString() << ": Failed to create connection to "
-                        << remote_candidate().address().ToSensitiveString();
+    LOG_J(LS_WARNING, this) << "Failed to create connection to "
+                            << remote_candidate().address().ToSensitiveString();
   }
 }
 

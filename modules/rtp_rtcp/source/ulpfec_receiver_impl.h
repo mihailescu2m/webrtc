@@ -25,7 +25,7 @@ namespace webrtc {
 class UlpfecReceiverImpl : public UlpfecReceiver {
  public:
   explicit UlpfecReceiverImpl(uint32_t ssrc, RecoveredPacketReceiver* callback);
-  ~UlpfecReceiverImpl() override;
+  virtual ~UlpfecReceiverImpl();
 
   int32_t AddReceivedRedPacket(const RTPHeader& rtp_header,
                                const uint8_t* incoming_rtp_packet,

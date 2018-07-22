@@ -13,15 +13,13 @@
 
 #include <string>
 
-#if defined(WEBRTC_WIN)
-#include <windows.h>
-#else
+#if !defined(WEBRTC_WIN)
 #include <dirent.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#endif  // WEBRTC_WIN
+#endif
 
 #include "rtc_base/checks.h"
 #include "rtc_base/constructormagic.h"
@@ -42,7 +40,6 @@ class Pathname;
 
 class DirectoryIterator {
   friend class Filesystem;
-
  public:
   // Constructor
   DirectoryIterator();
@@ -53,7 +50,7 @@ class DirectoryIterator {
   // dir is the directory to traverse
   // returns true if the directory exists and is valid
   // The iterator will point to the first entry in the directory
-  virtual bool Iterate(const Pathname& path);
+  virtual bool Iterate(const Pathname &path);
 
   // Advances to the next file
   // returns true if there were more files in the directory.
@@ -71,8 +68,8 @@ class DirectoryIterator {
   WIN32_FIND_DATA data_;
   HANDLE handle_;
 #else
-  DIR* dir_;
-  struct dirent* dirent_;
+  DIR *dir_;
+  struct dirent *dirent_;
   struct stat stat_;
 #endif
 };
@@ -84,12 +81,12 @@ class FilesystemInterface {
   // This will attempt to delete the path located at filename.
   // It DCHECKs and returns false if the path points to a folder or a
   // non-existent file.
-  virtual bool DeleteFile(const Pathname& filename) = 0;
+  virtual bool DeleteFile(const Pathname &filename) = 0;
 
   // This moves a file from old_path to new_path, where "old_path" is a
   // plain file. This DCHECKs and returns false if old_path points to a
   // directory, and returns true if the function succeeds.
-  virtual bool MoveFile(const Pathname& old_path, const Pathname& new_path) = 0;
+  virtual bool MoveFile(const Pathname &old_path, const Pathname &new_path) = 0;
 
   // Returns true if pathname refers to a directory
   virtual bool IsFolder(const Pathname& pathname) = 0;
@@ -97,34 +94,60 @@ class FilesystemInterface {
   // Returns true if pathname refers to a file
   virtual bool IsFile(const Pathname& pathname) = 0;
 
+  virtual std::string TempFilename(const Pathname &dir,
+                                   const std::string &prefix) = 0;
+
   // Determines the size of the file indicated by path.
   virtual bool GetFileSize(const Pathname& path, size_t* size) = 0;
 };
 
 class Filesystem {
  public:
-  static bool DeleteFile(const Pathname& filename) {
-    return GetFilesystem()->DeleteFile(filename);
+  static FilesystemInterface *default_filesystem() {
+    RTC_DCHECK(default_filesystem_);
+    return default_filesystem_;
   }
 
-  static bool MoveFile(const Pathname& old_path, const Pathname& new_path) {
-    return GetFilesystem()->MoveFile(old_path, new_path);
+  static void set_default_filesystem(FilesystemInterface *filesystem) {
+    default_filesystem_ = filesystem;
+  }
+
+  static FilesystemInterface *swap_default_filesystem(
+      FilesystemInterface *filesystem) {
+    FilesystemInterface *cur = default_filesystem_;
+    default_filesystem_ = filesystem;
+    return cur;
+  }
+
+  static bool DeleteFile(const Pathname &filename) {
+    return EnsureDefaultFilesystem()->DeleteFile(filename);
+  }
+
+  static bool MoveFile(const Pathname &old_path, const Pathname &new_path) {
+    return EnsureDefaultFilesystem()->MoveFile(old_path, new_path);
   }
 
   static bool IsFolder(const Pathname& pathname) {
-    return GetFilesystem()->IsFolder(pathname);
+    return EnsureDefaultFilesystem()->IsFolder(pathname);
   }
 
-  static bool IsFile(const Pathname& pathname) {
-    return GetFilesystem()->IsFile(pathname);
+  static bool IsFile(const Pathname &pathname) {
+    return EnsureDefaultFilesystem()->IsFile(pathname);
+  }
+
+  static std::string TempFilename(const Pathname &dir,
+                                  const std::string &prefix) {
+    return EnsureDefaultFilesystem()->TempFilename(dir, prefix);
   }
 
   static bool GetFileSize(const Pathname& path, size_t* size) {
-    return GetFilesystem()->GetFileSize(path, size);
+    return EnsureDefaultFilesystem()->GetFileSize(path, size);
   }
 
  private:
-  static FilesystemInterface* GetFilesystem();
+  static FilesystemInterface* default_filesystem_;
+
+  static FilesystemInterface *EnsureDefaultFilesystem();
   RTC_DISALLOW_IMPLICIT_CONSTRUCTORS(Filesystem);
 };
 

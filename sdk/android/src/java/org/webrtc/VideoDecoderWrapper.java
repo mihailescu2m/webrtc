@@ -22,6 +22,7 @@ class VideoDecoderWrapper {
                Integer qp) -> nativeOnDecodedFrame(nativeDecoder, frame, decodeTimeMs, qp);
   }
 
+  @NativeClassQualifiedName("webrtc::jni::VideoDecoderWrapper")
   private static native void nativeOnDecodedFrame(
-      long nativeVideoDecoderWrapper, VideoFrame frame, Integer decodeTimeMs, Integer qp);
+      long nativeDecoder, VideoFrame frame, Integer decodeTimeMs, Integer qp);
 }

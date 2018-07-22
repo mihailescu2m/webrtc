@@ -14,6 +14,7 @@
 #include "common_types.h"  // NOLINT(build/include)
 #include "common_video/include/video_bitrate_allocator.h"
 #include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "modules/video_coding/codecs/vp8/temporal_layers.h"
 #include "modules/video_coding/encoded_frame.h"
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "modules/video_coding/utility/default_video_bitrate_allocator.h"
@@ -35,7 +36,7 @@ VideoSender::VideoSender(Clock* clock,
       _codecDataBase(&_encodedFrameCallback),
       frame_dropper_enabled_(true),
       current_codec_(),
-      encoder_params_({VideoBitrateAllocation(), 0, 0, 0}),
+      encoder_params_({BitrateAllocation(), 0, 0, 0}),
       encoder_has_internal_source_(false),
       next_frame_types_(1, kVideoFrameDelta) {
   _mediaOpt.Reset();
@@ -68,8 +69,8 @@ int32_t VideoSender::RegisterSendCodec(const VideoCodec* sendCodec,
   current_codec_ = *sendCodec;
 
   if (!ret) {
-    RTC_LOG(LS_ERROR) << "Failed to initialize set encoder with codec type '"
-                      << sendCodec->codecType << "'.";
+    RTC_LOG(LS_ERROR) << "Failed to initialize set encoder with payload name '"
+                      << sendCodec->plName << "'.";
     return VCM_CODEC_ERROR;
   }
 
@@ -92,7 +93,7 @@ int32_t VideoSender::RegisterSendCodec(const VideoCodec* sendCodec,
 
   // If we have screensharing and we have layers, we disable frame dropper.
   bool disable_frame_dropper =
-      numLayers > 1 && sendCodec->mode == VideoCodecMode::kScreensharing;
+      numLayers > 1 && sendCodec->mode == kScreensharing;
   if (disable_frame_dropper) {
     _mediaOpt.EnableFrameDropper(false);
   } else if (frame_dropper_enabled_) {
@@ -122,14 +123,17 @@ int32_t VideoSender::RegisterSendCodec(const VideoCodec* sendCodec,
 // Register an external decoder object.
 // This can not be used together with external decoder callbacks.
 void VideoSender::RegisterExternalEncoder(VideoEncoder* externalEncoder,
+                                          uint8_t payloadType,
                                           bool internalSource /*= false*/) {
   RTC_DCHECK(sequenced_checker_.CalledSequentially());
 
   rtc::CritScope lock(&encoder_crit_);
 
   if (externalEncoder == nullptr) {
-    _codecDataBase.DeregisterExternalEncoder();
-    {
+    bool wasSendCodec = false;
+    RTC_CHECK(
+        _codecDataBase.DeregisterExternalEncoder(payloadType, &wasSendCodec));
+    if (wasSendCodec) {
       // Make sure the VCM doesn't use the de-registered codec
       rtc::CritScope params_lock(&params_crit_);
       _encoder = nullptr;
@@ -137,8 +141,33 @@ void VideoSender::RegisterExternalEncoder(VideoEncoder* externalEncoder,
     }
     return;
   }
-  _codecDataBase.RegisterExternalEncoder(externalEncoder,
+  _codecDataBase.RegisterExternalEncoder(externalEncoder, payloadType,
                                          internalSource);
+}
+
+// Get encode bitrate
+int VideoSender::Bitrate(unsigned int* bitrate) const {
+  RTC_DCHECK(sequenced_checker_.CalledSequentially());
+  // Since we're running on the thread that's the only thread known to modify
+  // the value of _encoder, we don't need to grab the lock here.
+
+  if (!_encoder)
+    return VCM_UNINITIALIZED;
+  *bitrate = _encoder->GetEncoderParameters().target_bitrate.get_sum_bps();
+  return 0;
+}
+
+// Get encode frame rate
+int VideoSender::FrameRate(unsigned int* framerate) const {
+  RTC_DCHECK(sequenced_checker_.CalledSequentially());
+  // Since we're running on the thread that's the only thread known to modify
+  // the value of _encoder, we don't need to grab the lock here.
+
+  if (!_encoder)
+    return VCM_UNINITIALIZED;
+
+  *framerate = _encoder->GetEncoderParameters().input_frame_rate;
+  return 0;
 }
 
 EncoderParameters VideoSender::UpdateEncoderParameters(
@@ -150,7 +179,7 @@ EncoderParameters VideoSender::UpdateEncoderParameters(
   if (input_frame_rate == 0)
     input_frame_rate = current_codec_.maxFramerate;
 
-  VideoBitrateAllocation bitrate_allocation;
+  BitrateAllocation bitrate_allocation;
   // Only call allocators if bitrate > 0 (ie, not suspended), otherwise they
   // might cap the bitrate to the min bitrate configured.
   if (target_bitrate_bps > 0) {
@@ -168,10 +197,10 @@ EncoderParameters VideoSender::UpdateEncoderParameters(
   return new_encoder_params;
 }
 
-void VideoSender::UpdateChannelParameters(
+void VideoSender::UpdateChannelParemeters(
     VideoBitrateAllocator* bitrate_allocator,
     VideoBitrateAllocationObserver* bitrate_updated_callback) {
-  VideoBitrateAllocation target_rate;
+  BitrateAllocation target_rate;
   {
     rtc::CritScope cs(&params_crit_);
     encoder_params_ =
@@ -237,6 +266,17 @@ void VideoSender::SetEncoderParameters(EncoderParameters params,
   }
   if (_encoder != nullptr)
     _encoder->SetEncoderParameters(params);
+}
+
+// Deprecated:
+// TODO(perkj): Remove once no projects call this method. It currently do
+// nothing.
+int32_t VideoSender::RegisterProtectionCallback(
+    VCMProtectionCallback* protection_callback) {
+  // Deprecated:
+  // TODO(perkj): Remove once no projects call this method. It currently do
+  // nothing.
+  return VCM_OK;
 }
 
 // Add one raw video frame to the encoder, blocking.

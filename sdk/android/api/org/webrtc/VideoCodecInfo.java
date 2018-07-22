@@ -10,7 +10,6 @@
 
 package org.webrtc;
 
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
@@ -36,7 +35,6 @@ public class VideoCodecInfo {
   public final Map<String, String> params;
   @Deprecated public final int payload;
 
-  @CalledByNative
   public VideoCodecInfo(String name, Map<String, String> params) {
     this.payload = 0;
     this.name = name;
@@ -51,7 +49,7 @@ public class VideoCodecInfo {
   }
 
   @Override
-  public boolean equals(@Nullable Object obj) {
+  public boolean equals(Object obj) {
     if (obj == null)
       return false;
     if (obj == this)
@@ -67,15 +65,5 @@ public class VideoCodecInfo {
   public int hashCode() {
     Object[] values = {name.toUpperCase(Locale.ROOT), params};
     return Arrays.hashCode(values);
-  }
-
-  @CalledByNative
-  String getName() {
-    return name;
-  }
-
-  @CalledByNative
-  Map getParams() {
-    return params;
   }
 }

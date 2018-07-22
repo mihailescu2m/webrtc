@@ -6,12 +6,18 @@
 # in the file PATENTS.  All contributing project authors may
 # be found in the AUTHORS file in the root of the source tree.
 
+import("//build/config/arm.gni")
 import("../webrtc.gni")
 
-visibility = [ ":*" ]
+config("common_audio_config") {
+  include_dirs = [
+    "resampler/include",
+    "signal_processing/include",
+    "vad/include",
+  ]
+}
 
 rtc_static_library("common_audio") {
-  visibility += [ "*" ]
   sources = [
     "audio_converter.cc",
     "audio_converter.h",
@@ -51,25 +57,42 @@ rtc_static_library("common_audio") {
   ]
 
   deps = [
-    ":common_audio_c",
-    ":fft4g",
     ":sinc_resampler",
     "..:webrtc_common",
-    "../:typedefs",
-    "../rtc_base:checks",
+    "../api:optional",
     "../rtc_base:gtest_prod",
     "../rtc_base:rtc_base_approved",
-    "../rtc_base/memory:aligned_array",
-    "../rtc_base/memory:aligned_malloc",
     "../system_wrappers",
-    "../system_wrappers:cpu_features_api",
-    "//third_party/abseil-cpp/absl/types:optional",
+  ]
+  public_deps = [
+    ":common_audio_c",
   ]
 
   defines = []
+  if (rtc_use_openmax_dl) {
+    sources += [
+      "real_fourier_openmax.cc",
+      "real_fourier_openmax.h",
+    ]
+    defines += [ "RTC_USE_OPENMAX_DL" ]
+    if (rtc_build_openmax_dl) {
+      deps += [ "//third_party/openmax_dl/dl" ]
+    }
+  }
 
   if (rtc_build_with_neon) {
     deps += [ ":common_audio_neon" ]
+  }
+
+  if (is_win) {
+    cflags = [ "/wd4334" ]  # Ignore warning on shift operator promotion.
+  }
+
+  public_configs = [ ":common_audio_config" ]
+
+  if (!build_with_chromium && is_clang) {
+    # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+    suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
   }
 
   if (current_cpu == "x86" || current_cpu == "x64") {
@@ -78,7 +101,6 @@ rtc_static_library("common_audio") {
 }
 
 rtc_source_set("mock_common_audio") {
-  visibility += webrtc_default_visibility
   testonly = true
   sources = [
     "mocks/mock_smoothing_filter.h",
@@ -91,8 +113,8 @@ rtc_source_set("mock_common_audio") {
 }
 
 rtc_source_set("common_audio_c_arm_asm") {
+  visibility = [ ":*" ]  # Only targets in this file can depend on this.
   sources = []
-  deps = []
   if (current_cpu == "arm") {
     sources += [
       "signal_processing/complex_bit_reverse_arm.S",
@@ -104,13 +126,14 @@ rtc_source_set("common_audio_c_arm_asm") {
     } else {
       sources += [ "signal_processing/filter_ar_fast_q12.c" ]
     }
-    deps += [ "../rtc_base/system:asm_defines" ]
   }
 }
 
 rtc_source_set("common_audio_c") {
-  visibility += webrtc_default_visibility
+  visibility = [ ":*" ]  # Only targets in this file can depend on this.
   sources = [
+    "fft4g.c",
+    "fft4g.h",
     "ring_buffer.c",
     "ring_buffer.h",
     "signal_processing/auto_corr_to_refl_coef.c",
@@ -187,40 +210,33 @@ rtc_source_set("common_audio_c") {
     ]
   }
 
+  if (is_win) {
+    cflags = [ "/wd4334" ]  # Ignore warning on shift operator promotion.
+  }
+
+  public_configs = [ ":common_audio_config" ]
   deps = [
     ":common_audio_c_arm_asm",
     ":common_audio_cc",
-    ":fft4g",
     "..:webrtc_common",
-    "../:typedefs",
-    "../rtc_base:checks",
     "../rtc_base:compile_assert_c",
     "../rtc_base:rtc_base_approved",
-    "../rtc_base:sanitizer",
-    "../system_wrappers",
-    "../system_wrappers:cpu_features_api",
-  ]
-}
-
-rtc_source_set("fft4g") {
-  visibility += webrtc_default_visibility
-  sources = [
-    "fft4g.c",
-    "fft4g.h",
+    "../system_wrappers:system_wrappers",
   ]
 }
 
 rtc_source_set("common_audio_cc") {
+  visibility = [ ":*" ]  # Only targets in this file can depend on this.
   sources = [
     "signal_processing/dot_product_with_scale.cc",
     "signal_processing/dot_product_with_scale.h",
   ]
 
+  public_configs = [ ":common_audio_config" ]
   deps = [
     "..:webrtc_common",
-    "../:typedefs",
     "../rtc_base:rtc_base_approved",
-    "../system_wrappers",
+    "../system_wrappers:system_wrappers",
   ]
 }
 
@@ -230,23 +246,19 @@ rtc_source_set("sinc_resampler") {
   ]
   deps = [
     "..:webrtc_common",
-    "../:typedefs",
     "../rtc_base:gtest_prod",
     "../rtc_base:rtc_base_approved",
-    "../rtc_base/memory:aligned_malloc",
     "../system_wrappers",
   ]
 }
 
 rtc_source_set("fir_filter") {
-  visibility += webrtc_default_visibility
   sources = [
     "fir_filter.h",
   ]
 }
 
 rtc_source_set("fir_filter_factory") {
-  visibility += webrtc_default_visibility
   sources = [
     "fir_filter_c.cc",
     "fir_filter_c.h",
@@ -255,7 +267,6 @@ rtc_source_set("fir_filter_factory") {
   ]
   deps = [
     ":fir_filter",
-    "../rtc_base:checks",
     "../rtc_base:rtc_base_approved",
     "../system_wrappers:cpu_features_api",
   ]
@@ -275,16 +286,19 @@ if (current_cpu == "x86" || current_cpu == "x64") {
       "resampler/sinc_resampler_sse.cc",
     ]
 
-    if (is_posix || is_fuchsia) {
+    if (is_posix) {
       cflags = [ "-msse2" ]
     }
 
+    if (!build_with_chromium && is_clang) {
+      # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+      suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
+    }
     deps = [
       ":fir_filter",
       ":sinc_resampler",
-      "../rtc_base:checks",
       "../rtc_base:rtc_base_approved",
-      "../rtc_base/memory:aligned_malloc",
+      "../system_wrappers:system_wrappers",
     ]
   }
 }
@@ -314,18 +328,25 @@ if (rtc_build_with_neon) {
       ]
     }
 
+    if (!build_with_chromium && is_clang) {
+      # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+      suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
+    }
+
     deps = [
-      ":common_audio_neon_c",
       ":fir_filter",
       ":sinc_resampler",
-      "../rtc_base:checks",
       "../rtc_base:rtc_base_approved",
-      "../rtc_base/memory:aligned_malloc",
+      "../system_wrappers:system_wrappers",
+    ]
+
+    public_deps = [
+      ":common_audio_neon_c",
     ]
   }
 
   rtc_source_set("common_audio_neon_c") {
-    visibility += webrtc_default_visibility
+    visibility = [ ":*" ]  # Only targets in this file can depend on this.
     sources = [
       "signal_processing/cross_correlation_neon.c",
       "signal_processing/downsample_fast_neon.c",
@@ -349,9 +370,12 @@ if (rtc_build_with_neon) {
       ]
     }
 
+    if (!build_with_chromium && is_clang) {
+      # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+      suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
+    }
     deps = [
       ":common_audio_c",
-      "../rtc_base:checks",
       "../rtc_base:rtc_base_approved",
     ]
   }
@@ -359,7 +383,6 @@ if (rtc_build_with_neon) {
 
 if (rtc_include_tests) {
   rtc_test("common_audio_unittests") {
-    visibility += webrtc_default_visibility
     testonly = true
 
     sources = [
@@ -397,20 +420,26 @@ if (rtc_include_tests) {
       sources += [ "resampler/sinc_resampler_unittest.cc" ]
     }
 
+    if (rtc_use_openmax_dl) {
+      defines = [ "RTC_USE_OPENMAX_DL" ]
+    }
+
+    if (!build_with_chromium && is_clang) {
+      # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+      suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
+    }
+
     deps = [
       ":common_audio",
-      ":common_audio_c",
       ":fir_filter",
       ":fir_filter_factory",
       ":sinc_resampler",
       "..:webrtc_common",
-      "../:typedefs",
-      "../rtc_base:checks",
       "../rtc_base:rtc_base_approved",
       "../rtc_base:rtc_base_tests_utils",
-      "../system_wrappers:cpu_features_api",
-      "../test:fileutils",
+      "../system_wrappers",
       "../test:test_main",
+      "//testing/gmock",
       "//testing/gtest",
     ]
 

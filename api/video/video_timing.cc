@@ -10,7 +10,7 @@
 
 #include "api/video/video_timing.h"
 
-#include "rtc_base/strings/string_builder.h"
+#include <sstream>
 
 namespace webrtc {
 
@@ -28,7 +28,7 @@ TimingFrameInfo::TimingFrameInfo()
       decode_start_ms(-1),
       decode_finish_ms(-1),
       render_time_ms(-1),
-      flags(VideoSendTiming::kNotTriggered) {}
+      flags(TimingFrameFlags::kDefault) {}
 
 int64_t TimingFrameInfo::EndToEndDelay() const {
   return capture_time_ms >= 0 ? decode_finish_ms - capture_time_ms : -1;
@@ -48,34 +48,31 @@ bool TimingFrameInfo::operator<=(const TimingFrameInfo& other) const {
 }
 
 bool TimingFrameInfo::IsOutlier() const {
-  return !IsInvalid() && (flags & VideoSendTiming::kTriggeredBySize);
+  return !IsInvalid() && (flags & TimingFrameFlags::kTriggeredBySize);
 }
 
 bool TimingFrameInfo::IsTimerTriggered() const {
-  return !IsInvalid() && (flags & VideoSendTiming::kTriggeredByTimer);
+  return !IsInvalid() && (flags & TimingFrameFlags::kTriggeredByTimer);
 }
 
 bool TimingFrameInfo::IsInvalid() const {
-  return flags == VideoSendTiming::kInvalid;
+  return flags == TimingFrameFlags::kInvalid;
 }
 
 std::string TimingFrameInfo::ToString() const {
+  std::stringstream out;
   if (IsInvalid()) {
-    return "";
+    out << "";
+  } else {
+    out << rtp_timestamp << ',' << capture_time_ms << ',' << encode_start_ms
+        << ',' << encode_finish_ms << ',' << packetization_finish_ms << ','
+        << pacer_exit_ms << ',' << network_timestamp_ms << ','
+        << network2_timestamp_ms << ',' << receive_start_ms << ','
+        << receive_finish_ms << ',' << decode_start_ms << ','
+        << decode_finish_ms << ',' << render_time_ms << ','
+        << IsOutlier() << ',' << IsTimerTriggered();
   }
-
-  char buf[1024];
-  rtc::SimpleStringBuilder sb(buf);
-
-  sb << rtp_timestamp << ',' << capture_time_ms << ',' << encode_start_ms << ','
-     << encode_finish_ms << ',' << packetization_finish_ms << ','
-     << pacer_exit_ms << ',' << network_timestamp_ms << ','
-     << network2_timestamp_ms << ',' << receive_start_ms << ','
-     << receive_finish_ms << ',' << decode_start_ms << ',' << decode_finish_ms
-     << ',' << render_time_ms << ',' << IsOutlier() << ','
-     << IsTimerTriggered();
-
-  return sb.str();
+  return out.str();
 }
 
 }  // namespace webrtc

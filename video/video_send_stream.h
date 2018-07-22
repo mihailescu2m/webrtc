@@ -15,22 +15,20 @@
 #include <memory>
 #include <vector>
 
-#include "api/fec_controller.h"
 #include "call/bitrate_allocator.h"
 #include "call/video_receive_stream.h"
 #include "call/video_send_stream.h"
 #include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "modules/video_coding/protection_bitrate_calculator.h"
 #include "rtc_base/criticalsection.h"
 #include "rtc_base/event.h"
 #include "rtc_base/task_queue.h"
+#include "video/encoder_rtcp_feedback.h"
 #include "video/send_delay_stats.h"
 #include "video/send_statistics_proxy.h"
 #include "video/video_stream_encoder.h"
 
 namespace webrtc {
-namespace test {
-class VideoSendStreamPeer;
-}  // namespace test
 
 class CallStats;
 class SendSideCongestionController;
@@ -50,9 +48,6 @@ class VideoSendStreamImpl;
 // |worker_queue|.
 class VideoSendStream : public webrtc::VideoSendStream {
  public:
-  using RtpStateMap = std::map<uint32_t, RtpState>;
-  using RtpPayloadStateMap = std::map<uint32_t, RtpPayloadState>;
-
   VideoSendStream(
       int num_cpu_cores,
       ProcessThread* module_process_thread,
@@ -65,16 +60,14 @@ class VideoSendStream : public webrtc::VideoSendStream {
       VideoSendStream::Config config,
       VideoEncoderConfig encoder_config,
       const std::map<uint32_t, RtpState>& suspended_ssrcs,
-      const std::map<uint32_t, RtpPayloadState>& suspended_payload_states,
-      std::unique_ptr<FecController> fec_controller);
+      const std::map<uint32_t, RtpPayloadState>& suspended_payload_states);
 
   ~VideoSendStream() override;
 
+  void SignalNetworkState(NetworkState state);
   bool DeliverRtcp(const uint8_t* packet, size_t length);
 
   // webrtc::VideoSendStream implementation.
-  void UpdateActiveSimulcastLayers(
-      const std::vector<bool> active_layers) override;
   void Start() override;
   void Stop() override;
 
@@ -83,6 +76,9 @@ class VideoSendStream : public webrtc::VideoSendStream {
 
   void ReconfigureVideoEncoder(VideoEncoderConfig) override;
   Stats GetStats() override;
+
+  typedef std::map<uint32_t, RtpState> RtpStateMap;
+  typedef std::map<uint32_t, RtpPayloadState> RtpPayloadStateMap;
 
   // Takes ownership of each file, is responsible for closing them later.
   // Calling this method will close and finalize any current logs.
@@ -99,11 +95,8 @@ class VideoSendStream : public webrtc::VideoSendStream {
   void SetTransportOverhead(size_t transport_overhead_per_packet);
 
  private:
-  friend class test::VideoSendStreamPeer;
-
   class ConstructionTask;
-
-  absl::optional<float> GetPacingFactorOverride() const;
+  class DestructAndGetRtpStateTask;
 
   rtc::ThreadChecker thread_checker_;
   rtc::TaskQueue* const worker_queue_;

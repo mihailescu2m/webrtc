@@ -112,19 +112,19 @@ static constexpr LevelConstraint kLevelConstraints[] = {
     {245760, 8192, webrtc::H264::kLevel4_1},
     {522240, 8704, webrtc::H264::kLevel4_2},
     {589824, 22080, webrtc::H264::kLevel5},
-    {983040, 36864, webrtc::H264::kLevel5_1},
-    {2073600, 36864, webrtc::H264::kLevel5_2},
+    {983040, 3684, webrtc::H264::kLevel5_1},
+    {2073600, 3684, webrtc::H264::kLevel5_2},
 };
 
 }  // anonymous namespace
 
-absl::optional<ProfileLevelId> ParseProfileLevelId(const char* str) {
+rtc::Optional<ProfileLevelId> ParseProfileLevelId(const char* str) {
   // The string should consist of 3 bytes in hexadecimal format.
   if (strlen(str) != 6u)
-    return absl::nullopt;
+    return rtc::nullopt;
   const uint32_t profile_level_id_numeric = strtol(str, nullptr, 16);
   if (profile_level_id_numeric == 0)
-    return absl::nullopt;
+    return rtc::nullopt;
 
   // Separate into three bytes.
   const uint8_t level_idc =
@@ -159,7 +159,7 @@ absl::optional<ProfileLevelId> ParseProfileLevelId(const char* str) {
       break;
     default:
       // Unrecognized level_idc.
-      return absl::nullopt;
+      return rtc::nullopt;
   }
 
   // Parse profile_idc/profile_iop into a Profile enum.
@@ -171,10 +171,10 @@ absl::optional<ProfileLevelId> ParseProfileLevelId(const char* str) {
   }
 
   // Unrecognized profile_idc/profile_iop combination.
-  return absl::nullopt;
+  return rtc::nullopt;
 }
 
-absl::optional<Level> SupportedLevel(int max_frame_pixel_count, float max_fps) {
+rtc::Optional<Level> SupportedLevel(int max_frame_pixel_count, float max_fps) {
   static const int kPixelsPerMacroblock = 16 * 16;
 
   for (int i = arraysize(kLevelConstraints) - 1; i >= 0; --i) {
@@ -188,10 +188,10 @@ absl::optional<Level> SupportedLevel(int max_frame_pixel_count, float max_fps) {
   }
 
   // No level supported.
-  return absl::nullopt;
+  return rtc::nullopt;
 }
 
-absl::optional<ProfileLevelId> ParseSdpProfileLevelId(
+rtc::Optional<ProfileLevelId> ParseSdpProfileLevelId(
     const CodecParameterMap& params) {
   // TODO(magjed): The default should really be kProfileBaseline and kLevel1
   // according to the spec: https://tools.ietf.org/html/rfc6184#section-8.1. In
@@ -209,7 +209,7 @@ absl::optional<ProfileLevelId> ParseSdpProfileLevelId(
              : ParseProfileLevelId(profile_level_id_it->second.c_str());
 }
 
-absl::optional<std::string> ProfileLevelIdToString(
+rtc::Optional<std::string> ProfileLevelIdToString(
     const ProfileLevelId& profile_level_id) {
   // Handle special case level == 1b.
   if (profile_level_id.level == kLevel1_b) {
@@ -222,7 +222,7 @@ absl::optional<std::string> ProfileLevelIdToString(
         return {"4d100b"};
       // Level 1b is not allowed for other profiles.
       default:
-        return absl::nullopt;
+        return rtc::nullopt;
     }
   }
 
@@ -245,7 +245,7 @@ absl::optional<std::string> ProfileLevelIdToString(
       break;
     // Unrecognized profile.
     default:
-      return absl::nullopt;
+      return rtc::nullopt;
   }
 
   char str[7];
@@ -267,9 +267,9 @@ void GenerateProfileLevelIdForAnswer(
   }
 
   // Parse profile-level-ids.
-  const absl::optional<ProfileLevelId> local_profile_level_id =
+  const rtc::Optional<ProfileLevelId> local_profile_level_id =
       ParseSdpProfileLevelId(local_supported_params);
-  const absl::optional<ProfileLevelId> remote_profile_level_id =
+  const rtc::Optional<ProfileLevelId> remote_profile_level_id =
       ParseSdpProfileLevelId(remote_offered_params);
   // The local and remote codec must have valid and equal H264 Profiles.
   RTC_DCHECK(local_profile_level_id);
@@ -297,9 +297,9 @@ void GenerateProfileLevelIdForAnswer(
 
 bool IsSameH264Profile(const CodecParameterMap& params1,
                        const CodecParameterMap& params2) {
-  const absl::optional<webrtc::H264::ProfileLevelId> profile_level_id =
+  const rtc::Optional<webrtc::H264::ProfileLevelId> profile_level_id =
       webrtc::H264::ParseSdpProfileLevelId(params1);
-  const absl::optional<webrtc::H264::ProfileLevelId> other_profile_level_id =
+  const rtc::Optional<webrtc::H264::ProfileLevelId> other_profile_level_id =
       webrtc::H264::ParseSdpProfileLevelId(params2);
   // Compare H264 profiles, but not levels.
   return profile_level_id && other_profile_level_id &&

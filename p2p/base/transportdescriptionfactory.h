@@ -52,8 +52,7 @@ class TransportDescriptionFactory {
   }
 
   // Creates a transport description suitable for use in an offer.
-  TransportDescription* CreateOffer(
-      const TransportOptions& options,
+  TransportDescription* CreateOffer(const TransportOptions& options,
       const TransportDescription* current_description) const;
   // Create a transport description that is a response to an offer.
   //

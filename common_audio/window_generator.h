@@ -30,3 +30,4 @@ class WindowGenerator {
 }  // namespace webrtc
 
 #endif  // COMMON_AUDIO_WINDOW_GENERATOR_H_
+

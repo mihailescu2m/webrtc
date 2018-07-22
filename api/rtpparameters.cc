@@ -10,27 +10,24 @@
 #include "api/rtpparameters.h"
 
 #include <algorithm>
+#include <sstream>
 #include <string>
 
 #include "rtc_base/checks.h"
-#include "rtc_base/strings/string_builder.h"
 
 namespace webrtc {
 
-const double kDefaultBitratePriority = 1.0;
-
-RtcpFeedback::RtcpFeedback() = default;
+RtcpFeedback::RtcpFeedback() {}
 RtcpFeedback::RtcpFeedback(RtcpFeedbackType type) : type(type) {}
 RtcpFeedback::RtcpFeedback(RtcpFeedbackType type,
                            RtcpFeedbackMessageType message_type)
     : type(type), message_type(message_type) {}
-RtcpFeedback::RtcpFeedback(const RtcpFeedback& rhs) = default;
-RtcpFeedback::~RtcpFeedback() = default;
+RtcpFeedback::~RtcpFeedback() {}
 
-RtpCodecCapability::RtpCodecCapability() = default;
-RtpCodecCapability::~RtpCodecCapability() = default;
+RtpCodecCapability::RtpCodecCapability() {}
+RtpCodecCapability::~RtpCodecCapability() {}
 
-RtpHeaderExtensionCapability::RtpHeaderExtensionCapability() = default;
+RtpHeaderExtensionCapability::RtpHeaderExtensionCapability() {}
 RtpHeaderExtensionCapability::RtpHeaderExtensionCapability(
     const std::string& uri)
     : uri(uri) {}
@@ -38,57 +35,46 @@ RtpHeaderExtensionCapability::RtpHeaderExtensionCapability(
     const std::string& uri,
     int preferred_id)
     : uri(uri), preferred_id(preferred_id) {}
-RtpHeaderExtensionCapability::~RtpHeaderExtensionCapability() = default;
+RtpHeaderExtensionCapability::~RtpHeaderExtensionCapability() {}
 
-RtpExtension::RtpExtension() = default;
+RtpExtension::RtpExtension() {}
 RtpExtension::RtpExtension(const std::string& uri, int id) : uri(uri), id(id) {}
 RtpExtension::RtpExtension(const std::string& uri, int id, bool encrypt)
     : uri(uri), id(id), encrypt(encrypt) {}
-RtpExtension::~RtpExtension() = default;
+RtpExtension::~RtpExtension() {}
 
-RtpFecParameters::RtpFecParameters() = default;
+RtpFecParameters::RtpFecParameters() {}
 RtpFecParameters::RtpFecParameters(FecMechanism mechanism)
     : mechanism(mechanism) {}
 RtpFecParameters::RtpFecParameters(FecMechanism mechanism, uint32_t ssrc)
     : ssrc(ssrc), mechanism(mechanism) {}
-RtpFecParameters::RtpFecParameters(const RtpFecParameters& rhs) = default;
-RtpFecParameters::~RtpFecParameters() = default;
+RtpFecParameters::~RtpFecParameters() {}
 
-RtpRtxParameters::RtpRtxParameters() = default;
+RtpRtxParameters::RtpRtxParameters() {}
 RtpRtxParameters::RtpRtxParameters(uint32_t ssrc) : ssrc(ssrc) {}
-RtpRtxParameters::RtpRtxParameters(const RtpRtxParameters& rhs) = default;
-RtpRtxParameters::~RtpRtxParameters() = default;
+RtpRtxParameters::~RtpRtxParameters() {}
 
-RtpEncodingParameters::RtpEncodingParameters() = default;
-RtpEncodingParameters::RtpEncodingParameters(const RtpEncodingParameters& rhs) =
-    default;
-RtpEncodingParameters::~RtpEncodingParameters() = default;
+RtpEncodingParameters::RtpEncodingParameters() {}
+RtpEncodingParameters::~RtpEncodingParameters() {}
 
-RtpCodecParameters::RtpCodecParameters() = default;
-RtpCodecParameters::RtpCodecParameters(const RtpCodecParameters& rhs) = default;
-RtpCodecParameters::~RtpCodecParameters() = default;
+RtpCodecParameters::RtpCodecParameters() {}
+RtpCodecParameters::~RtpCodecParameters() {}
 
-RtpCapabilities::RtpCapabilities() = default;
-RtpCapabilities::~RtpCapabilities() = default;
+RtpCapabilities::RtpCapabilities() {}
+RtpCapabilities::~RtpCapabilities() {}
 
-RtcpParameters::RtcpParameters() = default;
-RtcpParameters::RtcpParameters(const RtcpParameters& rhs) = default;
-RtcpParameters::~RtcpParameters() = default;
-
-RtpParameters::RtpParameters() = default;
-RtpParameters::RtpParameters(const RtpParameters& rhs) = default;
-RtpParameters::~RtpParameters() = default;
+RtpParameters::RtpParameters() {}
+RtpParameters::~RtpParameters() {}
 
 std::string RtpExtension::ToString() const {
-  char buf[256];
-  rtc::SimpleStringBuilder sb(buf);
-  sb << "{uri: " << uri;
-  sb << ", id: " << id;
+  std::stringstream ss;
+  ss << "{uri: " << uri;
+  ss << ", id: " << id;
   if (encrypt) {
-    sb << ", encrypt";
+    ss << ", encrypt";
   }
-  sb << '}';
-  return sb.str();
+  ss << '}';
+  return ss.str();
 }
 
 const char RtpExtension::kAudioLevelUri[] =
@@ -126,9 +112,6 @@ const char RtpExtension::kVideoTimingUri[] =
     "http://www.webrtc.org/experiments/rtp-hdrext/video-timing";
 const int RtpExtension::kVideoTimingDefaultId = 8;
 
-const char RtpExtension::kMidUri[] = "urn:ietf:params:rtp-hdrext:sdes:mid";
-const int RtpExtension::kMidDefaultId = 9;
-
 const char RtpExtension::kEncryptHeaderExtensionsUri[] =
     "urn:ietf:params:rtp-hdrext:encrypt";
 
@@ -137,8 +120,7 @@ const int RtpExtension::kMaxId = 14;
 
 bool RtpExtension::IsSupportedForAudio(const std::string& uri) {
   return uri == webrtc::RtpExtension::kAudioLevelUri ||
-         uri == webrtc::RtpExtension::kTransportSequenceNumberUri ||
-         uri == webrtc::RtpExtension::kMidUri;
+         uri == webrtc::RtpExtension::kTransportSequenceNumberUri;
 }
 
 bool RtpExtension::IsSupportedForVideo(const std::string& uri) {
@@ -148,8 +130,7 @@ bool RtpExtension::IsSupportedForVideo(const std::string& uri) {
          uri == webrtc::RtpExtension::kTransportSequenceNumberUri ||
          uri == webrtc::RtpExtension::kPlayoutDelayUri ||
          uri == webrtc::RtpExtension::kVideoContentTypeUri ||
-         uri == webrtc::RtpExtension::kVideoTimingUri ||
-         uri == webrtc::RtpExtension::kMidUri;
+         uri == webrtc::RtpExtension::kVideoTimingUri;
 }
 
 bool RtpExtension::IsEncryptionSupported(const std::string& uri) {
@@ -166,8 +147,7 @@ bool RtpExtension::IsEncryptionSupported(const std::string& uri) {
          uri == webrtc::RtpExtension::kVideoRotationUri ||
          uri == webrtc::RtpExtension::kTransportSequenceNumberUri ||
          uri == webrtc::RtpExtension::kPlayoutDelayUri ||
-         uri == webrtc::RtpExtension::kVideoContentTypeUri ||
-         uri == webrtc::RtpExtension::kMidUri;
+         uri == webrtc::RtpExtension::kVideoContentTypeUri;
 }
 
 const RtpExtension* RtpExtension::FindHeaderExtensionByUri(

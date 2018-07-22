@@ -17,7 +17,6 @@
 #include "test/gtest.h"
 
 using ::testing::_;
-using ::testing::AtLeast;
 using ::testing::DoAll;
 using ::testing::Return;
 using ::testing::SetArgPointee;
@@ -54,7 +53,7 @@ class AgcManagerDirectTest : public ::testing::Test {
   }
 
   void FirstProcess() {
-    EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+    EXPECT_CALL(*agc_, Reset());
     EXPECT_CALL(*agc_, GetRmsErrorDb(_)).WillOnce(Return(false));
     CallProcess(1);
   }
@@ -78,7 +77,7 @@ class AgcManagerDirectTest : public ::testing::Test {
 
   void CallProcess(int num_calls) {
     for (int i = 0; i < num_calls; ++i) {
-      EXPECT_CALL(*agc_, Process(_, _, _)).WillOnce(Return());
+      EXPECT_CALL(*agc_, Process(_, _, _)).WillOnce(Return(0));
       manager_.Process(nullptr, kSamplesPerChannel, kSampleRateHz);
     }
   }
@@ -367,14 +366,11 @@ TEST_F(AgcManagerDirectTest, ManualLevelChangeResultsInNoSetMicCall) {
   // to SetMicVolume.
   EXPECT_CALL(*agc_, GetRmsErrorDb(_))
       .WillOnce(DoAll(SetArgPointee<0>(11), Return(true)));
-
-  // When the analog volume changes, the gain controller is reset.
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
-
   // GetMicVolume returns a value outside of the quantization slack, indicating
   // a manual volume change.
-  ASSERT_NE(volume_.GetMicVolume(), 154);
   volume_.SetMicVolume(154);
+  // SetMicVolume should not be called.
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallProcess(1);
   EXPECT_EQ(154, volume_.GetMicVolume());
 
@@ -382,7 +378,7 @@ TEST_F(AgcManagerDirectTest, ManualLevelChangeResultsInNoSetMicCall) {
   EXPECT_CALL(*agc_, GetRmsErrorDb(_))
       .WillOnce(DoAll(SetArgPointee<0>(-1), Return(true)));
   volume_.SetMicVolume(100);
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallProcess(1);
   EXPECT_EQ(100, volume_.GetMicVolume());
 
@@ -411,7 +407,7 @@ TEST_F(AgcManagerDirectTest, RecoveryAfterManualLevelChangeFromMax) {
   EXPECT_CALL(*agc_, GetRmsErrorDb(_))
       .WillOnce(DoAll(SetArgPointee<0>(-1), Return(true)));
   volume_.SetMicVolume(50);
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallProcess(1);
   EXPECT_EQ(50, volume_.GetMicVolume());
 
@@ -430,7 +426,7 @@ TEST_F(AgcManagerDirectTest, RecoveryAfterManualLevelChangeBelowMin) {
       .WillOnce(DoAll(SetArgPointee<0>(-1), Return(true)));
   // Don't set to zero, which will cause AGC to take no action.
   volume_.SetMicVolume(1);
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallProcess(1);
   EXPECT_EQ(1, volume_.GetMicVolume());
 
@@ -471,7 +467,7 @@ TEST_F(AgcManagerDirectTest, ClippingLowersVolume) {
   SetVolumeAndProcess(255);
 
   EXPECT_CALL(*agc_, AnalyzePreproc(_, _)).WillOnce(Return(0.101));
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallPreProc(1);
   EXPECT_EQ(240, volume_.GetMicVolume());
 }
@@ -481,7 +477,7 @@ TEST_F(AgcManagerDirectTest, WaitingPeriodBetweenClippingChecks) {
 
   EXPECT_CALL(*agc_, AnalyzePreproc(_, _))
       .WillOnce(Return(kAboveClippedThreshold));
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallPreProc(1);
   EXPECT_EQ(240, volume_.GetMicVolume());
 
@@ -493,7 +489,7 @@ TEST_F(AgcManagerDirectTest, WaitingPeriodBetweenClippingChecks) {
 
   EXPECT_CALL(*agc_, AnalyzePreproc(_, _))
       .WillOnce(Return(kAboveClippedThreshold));
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallPreProc(1);
   EXPECT_EQ(225, volume_.GetMicVolume());
 }
@@ -503,7 +499,7 @@ TEST_F(AgcManagerDirectTest, ClippingLoweringIsLimited) {
 
   EXPECT_CALL(*agc_, AnalyzePreproc(_, _))
       .WillOnce(Return(kAboveClippedThreshold));
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallPreProc(1);
   EXPECT_EQ(kClippedMin, volume_.GetMicVolume());
 
@@ -519,7 +515,7 @@ TEST_F(AgcManagerDirectTest, ClippingMaxIsRespectedWhenEqualToLevel) {
 
   EXPECT_CALL(*agc_, AnalyzePreproc(_, _))
       .WillOnce(Return(kAboveClippedThreshold));
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallPreProc(1);
   EXPECT_EQ(240, volume_.GetMicVolume());
 
@@ -534,7 +530,7 @@ TEST_F(AgcManagerDirectTest, ClippingMaxIsRespectedWhenHigherThanLevel) {
 
   EXPECT_CALL(*agc_, AnalyzePreproc(_, _))
       .WillOnce(Return(kAboveClippedThreshold));
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallPreProc(1);
   EXPECT_EQ(185, volume_.GetMicVolume());
 
@@ -551,7 +547,7 @@ TEST_F(AgcManagerDirectTest, MaxCompressionIsIncreasedAfterClipping) {
 
   EXPECT_CALL(*agc_, AnalyzePreproc(_, _))
       .WillOnce(Return(kAboveClippedThreshold));
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallPreProc(1);
   EXPECT_EQ(195, volume_.GetMicVolume());
 
@@ -580,14 +576,14 @@ TEST_F(AgcManagerDirectTest, MaxCompressionIsIncreasedAfterClipping) {
   CallPreProc(300);
   EXPECT_CALL(*agc_, AnalyzePreproc(_, _))
       .WillOnce(Return(kAboveClippedThreshold));
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallPreProc(1);
   EXPECT_EQ(180, volume_.GetMicVolume());
 
   CallPreProc(300);
   EXPECT_CALL(*agc_, AnalyzePreproc(_, _))
       .WillOnce(Return(kAboveClippedThreshold));
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallPreProc(1);
   EXPECT_EQ(kClippedMin, volume_.GetMicVolume());
 
@@ -632,7 +628,7 @@ TEST_F(AgcManagerDirectTest, UserCanRaiseVolumeAfterClipping) {
 
   EXPECT_CALL(*agc_, AnalyzePreproc(_, _))
       .WillOnce(Return(kAboveClippedThreshold));
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallPreProc(1);
   EXPECT_EQ(210, volume_.GetMicVolume());
 
@@ -641,7 +637,7 @@ TEST_F(AgcManagerDirectTest, UserCanRaiseVolumeAfterClipping) {
       .WillOnce(DoAll(SetArgPointee<0>(14), Return(true)));
   // User changed the volume.
   volume_.SetMicVolume(250);
-  EXPECT_CALL(*agc_, Reset()).Times(AtLeast(1));
+  EXPECT_CALL(*agc_, Reset()).Times(1);
   CallProcess(1);
   EXPECT_EQ(250, volume_.GetMicVolume());
 

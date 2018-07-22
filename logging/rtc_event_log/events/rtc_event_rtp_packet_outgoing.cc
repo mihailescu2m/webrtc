@@ -10,7 +10,6 @@
 
 #include "logging/rtc_event_log/events/rtc_event_rtp_packet_outgoing.h"
 
-#include "absl/memory/memory.h"
 #include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
 
 namespace webrtc {
@@ -22,14 +21,6 @@ RtcEventRtpPacketOutgoing::RtcEventRtpPacketOutgoing(
   header_.CopyHeaderFrom(packet);
 }
 
-RtcEventRtpPacketOutgoing::RtcEventRtpPacketOutgoing(
-    const RtcEventRtpPacketOutgoing& other)
-    : RtcEvent(other.timestamp_us_),
-      packet_length_(other.packet_length_),
-      probe_cluster_id_(other.probe_cluster_id_) {
-  header_.CopyHeaderFrom(other.header_);
-}
-
 RtcEventRtpPacketOutgoing::~RtcEventRtpPacketOutgoing() = default;
 
 RtcEvent::Type RtcEventRtpPacketOutgoing::GetType() const {
@@ -38,10 +29,6 @@ RtcEvent::Type RtcEventRtpPacketOutgoing::GetType() const {
 
 bool RtcEventRtpPacketOutgoing::IsConfigEvent() const {
   return false;
-}
-
-std::unique_ptr<RtcEvent> RtcEventRtpPacketOutgoing::Copy() const {
-  return absl::WrapUnique<RtcEvent>(new RtcEventRtpPacketOutgoing(*this));
 }
 
 }  // namespace webrtc

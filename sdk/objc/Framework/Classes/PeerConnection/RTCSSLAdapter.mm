@@ -13,13 +13,13 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/ssladapter.h"
 
-BOOL RTCInitializeSSL(void) {
+BOOL RTCInitializeSSL() {
   BOOL initialized = rtc::InitializeSSL();
   RTC_DCHECK(initialized);
   return initialized;
 }
 
-BOOL RTCCleanupSSL(void) {
+BOOL RTCCleanupSSL() {
   BOOL cleanedUp = rtc::CleanupSSL();
   RTC_DCHECK(cleanedUp);
   return cleanedUp;

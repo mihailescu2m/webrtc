@@ -10,6 +10,7 @@
 
 #import "ARDAppClient+Internal.h"
 
+#import "WebRTC/RTCAVFoundationVideoSource.h"
 #import "WebRTC/RTCAudioTrack.h"
 #import "WebRTC/RTCCameraVideoCapturer.h"
 #import "WebRTC/RTCConfiguration.h"
@@ -21,14 +22,11 @@
 #import "WebRTC/RTCMediaStream.h"
 #import "WebRTC/RTCPeerConnectionFactory.h"
 #import "WebRTC/RTCRtpSender.h"
-#import "WebRTC/RTCRtpTransceiver.h"
 #import "WebRTC/RTCTracing.h"
 #import "WebRTC/RTCVideoCodecFactory.h"
-#import "WebRTC/RTCVideoSource.h"
 #import "WebRTC/RTCVideoTrack.h"
 
 #import "ARDAppEngineClient.h"
-#import "ARDExternalSampleCapturer.h"
 #import "ARDJoinResponse.h"
 #import "ARDMessageResponse.h"
 #import "ARDSettingsModel.h"
@@ -54,12 +52,10 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
 static NSString * const kARDVideoTrackKind = @"video";
 
 // TODO(tkchin): Add these as UI options.
-#if defined(WEBRTC_IOS)
 static BOOL const kARDAppClientEnableTracing = NO;
 static BOOL const kARDAppClientEnableRtcEventLog = YES;
 static int64_t const kARDAppClientAecDumpMaxSizeInBytes = 5e6;  // 5 MB.
 static int64_t const kARDAppClientRtcEventLogMaxSizeInBytes = 5e6;  // 5 MB.
-#endif
 static int const kKbpsMultiplier = 1000;
 
 // We need a proxy to NSTimer because it causes a strong retain cycle. When
@@ -131,7 +127,6 @@ static int const kKbpsMultiplier = 1000;
 @synthesize defaultPeerConnectionConstraints =
     _defaultPeerConnectionConstraints;
 @synthesize isLoopback = _isLoopback;
-@synthesize broadcast = _broadcast;
 
 - (instancetype)init {
   return [self initWithDelegate:nil];
@@ -241,7 +236,8 @@ static int const kKbpsMultiplier = 1000;
   [_turnClient requestServersWithCompletionHandler:^(NSArray *turnServers,
                                                      NSError *error) {
     if (error) {
-      RTCLogError(@"Error retrieving TURN servers: %@", error.localizedDescription);
+      RTCLogError("Error retrieving TURN servers: %@",
+                  error.localizedDescription);
     }
     ARDAppClient *strongSelf = weakSelf;
     [strongSelf.iceServers addObjectsFromArray:turnServers];
@@ -375,15 +371,15 @@ static int const kKbpsMultiplier = 1000;
 
 - (void)peerConnection:(RTCPeerConnection *)peerConnection
           didAddStream:(RTCMediaStream *)stream {
-  RTCLog(@"Stream with %lu video tracks and %lu audio tracks was added.",
-         (unsigned long)stream.videoTracks.count,
-         (unsigned long)stream.audioTracks.count);
-}
-
-- (void)peerConnection:(RTCPeerConnection *)peerConnection
-    didStartReceivingOnTransceiver:(RTCRtpTransceiver *)transceiver {
-  RTCMediaStreamTrack *track = transceiver.receiver.track;
-  RTCLog(@"Now receiving %@ on track %@.", track.kind, track.trackId);
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RTCLog(@"Received %lu video tracks and %lu audio tracks",
+        (unsigned long)stream.videoTracks.count,
+        (unsigned long)stream.audioTracks.count);
+    if (stream.videoTracks.count) {
+      RTCVideoTrack *videoTrack = stream.videoTracks[0];
+      [_delegate appClient:self didReceiveRemoteVideoTrack:videoTrack];
+    }
+  });
 }
 
 - (void)peerConnection:(RTCPeerConnection *)peerConnection
@@ -534,7 +530,6 @@ static int const kKbpsMultiplier = 1000;
   RTCMediaConstraints *constraints = [self defaultPeerConnectionConstraints];
   RTCConfiguration *config = [[RTCConfiguration alloc] init];
   config.iceServers = _iceServers;
-  config.sdpSemantics = RTCSdpSemanticsUnifiedPlan;
   _peerConnection = [_factory peerConnectionWithConfiguration:config
                                                   constraints:constraints
                                                      delegate:self];
@@ -681,31 +676,18 @@ static int const kKbpsMultiplier = 1000;
   [sender setParameters:parametersToModify];
 }
 
-- (RTCRtpTransceiver *)videoTransceiver {
-  for (RTCRtpTransceiver *transceiver in _peerConnection.transceivers) {
-    if (transceiver.mediaType == RTCRtpMediaTypeVideo) {
-      return transceiver;
-    }
-  }
-  return nil;
-}
-
 - (void)createMediaSenders {
   RTCMediaConstraints *constraints = [self defaultMediaAudioConstraints];
   RTCAudioSource *source = [_factory audioSourceWithConstraints:constraints];
   RTCAudioTrack *track = [_factory audioTrackWithSource:source
                                                 trackId:kARDAudioTrackId];
-  [_peerConnection addTrack:track streamIds:@[ kARDMediaStreamId ]];
+  RTCMediaStream *stream = [_factory mediaStreamWithStreamId:kARDMediaStreamId];
+  [stream addAudioTrack:track];
   _localVideoTrack = [self createLocalVideoTrack];
   if (_localVideoTrack) {
-    [_peerConnection addTrack:_localVideoTrack streamIds:@[ kARDMediaStreamId ]];
-    [_delegate appClient:self didReceiveLocalVideoTrack:_localVideoTrack];
-    // We can set up rendering for the remote track right away since the transceiver already has an
-    // RTCRtpReceiver with a track. The track will automatically get unmuted and produce frames
-    // once RTP is received.
-    RTCVideoTrack *track = (RTCVideoTrack *)([self videoTransceiver].receiver.track);
-    [_delegate appClient:self didReceiveRemoteVideoTrack:track];
+    [stream addVideoTrack:_localVideoTrack];
   }
+  [_peerConnection addStream:stream];
 }
 
 - (RTCVideoTrack *)createLocalVideoTrack {
@@ -716,14 +698,9 @@ static int const kKbpsMultiplier = 1000;
   RTCVideoSource *source = [_factory videoSource];
 
 #if !TARGET_IPHONE_SIMULATOR
-  if (self.isBroadcast) {
-    ARDExternalSampleCapturer *capturer =
-        [[ARDExternalSampleCapturer alloc] initWithDelegate:source];
-    [_delegate appClient:self didCreateLocalExternalSampleCapturer:capturer];
-  } else {
-    RTCCameraVideoCapturer *capturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:source];
-    [_delegate appClient:self didCreateLocalCapturer:capturer];
-  }
+  RTCCameraVideoCapturer *capturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:source];
+  [_delegate appClient:self didCreateLocalCapturer:capturer];
+
 #else
 #if defined(__IPHONE_11_0) && (__IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_11_0)
   if (@available(iOS 10, *)) {
@@ -763,7 +740,10 @@ static int const kKbpsMultiplier = 1000;
 #pragma mark - Defaults
 
  - (RTCMediaConstraints *)defaultMediaAudioConstraints {
-   NSDictionary *mandatoryConstraints = @{};
+   NSString *valueLevelControl = [_settings currentUseLevelControllerSettingFromStore] ?
+       kRTCMediaConstraintsValueTrue :
+       kRTCMediaConstraintsValueFalse;
+   NSDictionary *mandatoryConstraints = @{ kRTCMediaConstraintsLevelControl : valueLevelControl };
    RTCMediaConstraints *constraints =
        [[RTCMediaConstraints alloc] initWithMandatoryConstraints:mandatoryConstraints
                                              optionalConstraints:nil];

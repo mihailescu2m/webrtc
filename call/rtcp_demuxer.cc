@@ -10,7 +10,6 @@
 
 #include "call/rtcp_demuxer.h"
 
-#include "api/rtp_headers.h"
 #include "call/rtcp_packet_sink_interface.h"
 #include "call/rtp_rtcp_demuxer_helper.h"
 #include "common_types.h"  // NOLINT(build/include)
@@ -66,7 +65,7 @@ void RtcpDemuxer::RemoveBroadcastSink(const RtcpPacketSinkInterface* sink) {
 
 void RtcpDemuxer::OnRtcpPacket(rtc::ArrayView<const uint8_t> packet) {
   // Perform sender-SSRC-based demuxing for packets with a sender-SSRC.
-  absl::optional<uint32_t> sender_ssrc = ParseRtcpPacketSenderSsrc(packet);
+  rtc::Optional<uint32_t> sender_ssrc = ParseRtcpPacketSenderSsrc(packet);
   if (sender_ssrc) {
     auto it_range = ssrc_sinks_.equal_range(*sender_ssrc);
     for (auto it = it_range.first; it != it_range.second; ++it) {

@@ -27,7 +27,7 @@ class RemoteBitrateEstimatorSingleStream : public RemoteBitrateEstimator {
  public:
   RemoteBitrateEstimatorSingleStream(RemoteBitrateObserver* observer,
                                      const Clock* clock);
-  ~RemoteBitrateEstimatorSingleStream() override;
+  virtual ~RemoteBitrateEstimatorSingleStream();
 
   void IncomingPacket(int64_t arrival_time_ms,
                       size_t payload_size,

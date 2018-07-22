@@ -26,8 +26,12 @@ SSLAdapter* SSLAdapter::Create(AsyncSocket* socket) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-bool InitializeSSL() {
-  return OpenSSLAdapter::InitializeSSL();
+bool InitializeSSL(VerificationCallback callback) {
+  return OpenSSLAdapter::InitializeSSL(callback);
+}
+
+bool InitializeSSLThread() {
+  return OpenSSLAdapter::InitializeSSLThread();
 }
 
 bool CleanupSSL() {

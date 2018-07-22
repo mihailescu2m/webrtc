@@ -18,13 +18,15 @@
 #include "media/base/videocapturer.h"
 #include "media/base/videocommon.h"
 #include "rtc_base/arraysize.h"
+#include "rtc_base/basictypes.h"
 #include "rtc_base/sigslot.h"
+#include "rtc_base/window.h"
 
 namespace rtc {
 class ByteBufferReader;
 class ByteBufferWriter;
 class StreamInterface;
-}  // namespace rtc
+}
 
 namespace webrtc {
 class VideoFrame;
@@ -37,8 +39,7 @@ namespace cricket {
 // Returns size of ARGB image.
 #define ARGB_SIZE(w, h) (w * h * 4)
 
-template <class T>
-inline std::vector<T> MakeVector(const T a[], size_t s) {
+template <class T> inline std::vector<T> MakeVector(const T a[], size_t s) {
   return std::vector<T>(a, a + s);
 }
 #define MAKE_VECTOR(a) cricket::MakeVector(a, arraysize(a))
@@ -101,6 +102,20 @@ class VideoCapturerListener
   int frame_width_;
   int frame_height_;
   bool resolution_changed_;
+};
+
+class VideoMediaErrorCatcher : public sigslot::has_slots<> {
+ public:
+  VideoMediaErrorCatcher() : ssrc_(0), error_(VideoMediaChannel::ERROR_NONE) { }
+  uint32_t ssrc() const { return ssrc_; }
+  VideoMediaChannel::Error error() const { return error_; }
+  void OnError(uint32_t ssrc, VideoMediaChannel::Error error) {
+    ssrc_ = ssrc;
+    error_ = error;
+  }
+ private:
+  uint32_t ssrc_;
+  VideoMediaChannel::Error error_;
 };
 
 // Checks whether |codecs| contains |codec|; checks using Codec::Matches().

@@ -15,7 +15,6 @@
 #include <memory>
 #include <vector>
 
-#include "api/video_codecs/sdp_video_format.h"
 #include "api/video_codecs/video_encoder_factory.h"
 #include "modules/video_coding/codecs/vp8/include/vp8.h"
 
@@ -25,13 +24,8 @@ namespace webrtc {
 // doesn't support simulcast for provided settings.
 class VP8EncoderSimulcastProxy : public VP8Encoder {
  public:
-  VP8EncoderSimulcastProxy(VideoEncoderFactory* factory,
-                           const SdpVideoFormat& format);
-  // Deprecated. Remove once all clients use constructor with both factory and
-  // SdpVideoFormat;
   explicit VP8EncoderSimulcastProxy(VideoEncoderFactory* factory);
-
-  ~VP8EncoderSimulcastProxy() override;
+  virtual ~VP8EncoderSimulcastProxy();
 
   // Implements VideoEncoder.
   int Release() override;
@@ -43,17 +37,17 @@ class VP8EncoderSimulcastProxy : public VP8Encoder {
              const std::vector<FrameType>* frame_types) override;
   int RegisterEncodeCompleteCallback(EncodedImageCallback* callback) override;
   int SetChannelParameters(uint32_t packet_loss, int64_t rtt) override;
-  int SetRateAllocation(const VideoBitrateAllocation& bitrate,
+  int SetRateAllocation(const BitrateAllocation& bitrate,
                         uint32_t new_framerate) override;
 
   VideoEncoder::ScalingSettings GetScalingSettings() const override;
 
+  int32_t SetPeriodicKeyFrames(bool enable) override;
   bool SupportsNativeHandle() const override;
   const char* ImplementationName() const override;
 
  private:
   VideoEncoderFactory* const factory_;
-  SdpVideoFormat video_format_;
   std::unique_ptr<VideoEncoder> encoder_;
   EncodedImageCallback* callback_;
 };

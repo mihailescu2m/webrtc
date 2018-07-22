@@ -28,6 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
                               bitrate:(nullable NSNumber *)bitrate
                             audioOnly:(BOOL)audioOnly
                         createAecDump:(BOOL)createAecDump
+                   useLevelController:(BOOL)useLevelController
                  useManualAudioConfig:(BOOL)useManualAudioConfig;
 
 @property(nonatomic) NSString *videoResolution;
@@ -46,6 +47,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property(nonatomic) BOOL audioOnly;
 @property(nonatomic) BOOL createAecDump;
+@property(nonatomic) BOOL useLevelController;
 @property(nonatomic) BOOL useManualAudioConfig;
 
 @end

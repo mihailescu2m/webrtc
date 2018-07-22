@@ -15,7 +15,6 @@ import android.os.SystemClock;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -30,25 +29,21 @@ public class FileVideoCapturer implements VideoCapturer {
   /**
    * Read video data from file for the .y4m container.
    */
-  @SuppressWarnings("StringSplitter")
   private static class VideoReaderY4M implements VideoReader {
     private static final String TAG = "VideoReaderY4M";
     private static final String Y4M_FRAME_DELIMETER = "FRAME";
-    private static final int FRAME_DELIMETER_LENGTH = Y4M_FRAME_DELIMETER.length() + 1;
 
     private final int frameWidth;
     private final int frameHeight;
     // First char after header
     private final long videoStart;
-    private final RandomAccessFile mediaFile;
-    private final FileChannel mediaFileChannel;
+    private final RandomAccessFile mediaFileStream;
 
     public VideoReaderY4M(String file) throws IOException {
-      mediaFile = new RandomAccessFile(file, "r");
-      mediaFileChannel = mediaFile.getChannel();
+      mediaFileStream = new RandomAccessFile(file, "r");
       StringBuilder builder = new StringBuilder();
       for (;;) {
-        int c = mediaFile.read();
+        int c = mediaFileStream.read();
         if (c == -1) {
           // End of file reached.
           throw new RuntimeException("Found end of file before end of header for file: " + file);
@@ -59,7 +54,7 @@ public class FileVideoCapturer implements VideoCapturer {
         }
         builder.append((char) c);
       }
-      videoStart = mediaFileChannel.position();
+      videoStart = mediaFileStream.getFilePointer();
       String header = builder.toString();
       String[] headerTokens = header.split("[ ]");
       int w = 0;
@@ -105,24 +100,24 @@ public class FileVideoCapturer implements VideoCapturer {
       final int sizeV = chromaHeight * buffer.getStrideV();
 
       try {
-        ByteBuffer frameDelim = ByteBuffer.allocate(FRAME_DELIMETER_LENGTH);
-        if (mediaFileChannel.read(frameDelim) < FRAME_DELIMETER_LENGTH) {
+        byte[] frameDelim = new byte[Y4M_FRAME_DELIMETER.length() + 1];
+        if (mediaFileStream.read(frameDelim) < frameDelim.length) {
           // We reach end of file, loop
-          mediaFileChannel.position(videoStart);
-          if (mediaFileChannel.read(frameDelim) < FRAME_DELIMETER_LENGTH) {
+          mediaFileStream.seek(videoStart);
+          if (mediaFileStream.read(frameDelim) < frameDelim.length) {
             throw new RuntimeException("Error looping video");
           }
         }
-        String frameDelimStr = new String(frameDelim.array(), Charset.forName("US-ASCII"));
+        String frameDelimStr = new String(frameDelim, Charset.forName("US-ASCII"));
         if (!frameDelimStr.equals(Y4M_FRAME_DELIMETER + "\n")) {
           throw new RuntimeException(
               "Frames should be delimited by FRAME plus newline, found delimter was: '"
               + frameDelimStr + "'");
         }
 
-        mediaFileChannel.read(dataY);
-        mediaFileChannel.read(dataU);
-        mediaFileChannel.read(dataV);
+        mediaFileStream.readFully(dataY.array(), dataY.arrayOffset(), sizeY);
+        mediaFileStream.readFully(dataU.array(), dataU.arrayOffset(), sizeU);
+        mediaFileStream.readFully(dataV.array(), dataV.arrayOffset(), sizeV);
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
@@ -133,8 +128,7 @@ public class FileVideoCapturer implements VideoCapturer {
     @Override
     public void close() {
       try {
-        // Closing a file also closes the channel.
-        mediaFile.close();
+        mediaFileStream.close();
       } catch (IOException e) {
         Logging.e(TAG, "Problem closing file", e);
       }

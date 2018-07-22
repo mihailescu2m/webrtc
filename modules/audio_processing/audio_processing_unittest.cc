@@ -21,20 +21,21 @@
 #include "common_audio/signal_processing/include/signal_processing_library.h"
 #include "modules/audio_processing/aec_dump/aec_dump_factory.h"
 #include "modules/audio_processing/audio_processing_impl.h"
+#include "modules/audio_processing/beamformer/mock_nonlinear_beamformer.h"
 #include "modules/audio_processing/common.h"
 #include "modules/audio_processing/include/audio_processing.h"
 #include "modules/audio_processing/include/mock_audio_processing.h"
+#include "modules/audio_processing/level_controller/level_controller_constants.h"
 #include "modules/audio_processing/test/protobuf_utils.h"
 #include "modules/audio_processing/test/test_utils.h"
+#include "modules/include/module_common_types.h"
 #include "rtc_base/arraysize.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/gtest_prod_util.h"
 #include "rtc_base/ignore_wundef.h"
-#include "rtc_base/numerics/safe_conversions.h"
 #include "rtc_base/numerics/safe_minmax.h"
 #include "rtc_base/protobuf_utils.h"
 #include "rtc_base/refcountedobject.h"
-#include "rtc_base/swap_queue.h"
 #include "rtc_base/task_queue.h"
 #include "rtc_base/thread.h"
 #include "system_wrappers/include/event_wrapper.h"
@@ -242,7 +243,7 @@ void OpenFileAndWriteMessage(const std::string& filename,
   FILE* file = fopen(filename.c_str(), "wb");
   ASSERT_TRUE(file != NULL);
 
-  int32_t size = rtc::checked_cast<int32_t>(msg.ByteSizeLong());
+  int32_t size = msg.ByteSize();
   ASSERT_GT(size, 0);
   std::unique_ptr<uint8_t[]> array(new uint8_t[size]);
   ASSERT_TRUE(msg.SerializeToArray(array.get(), size));
@@ -450,7 +451,7 @@ ApmTest::ApmTest()
       out_file_(NULL) {
   Config config;
   config.Set<ExperimentalAgc>(new ExperimentalAgc(false));
-  apm_.reset(AudioProcessingBuilder().Create(config));
+  apm_.reset(AudioProcessing::Create(config));
 }
 
 void ApmTest::SetUp() {
@@ -1299,6 +1300,92 @@ TEST_F(ApmTest, ManualVolumeChangeIsPossible) {
   }
 }
 
+#if !defined(WEBRTC_ANDROID) && !defined(WEBRTC_IOS)
+TEST_F(ApmTest, AgcOnlyAdaptsWhenTargetSignalIsPresent) {
+  const int kSampleRateHz = 16000;
+  const size_t kSamplesPerChannel =
+      static_cast<size_t>(AudioProcessing::kChunkSizeMs * kSampleRateHz / 1000);
+  const size_t kNumInputChannels = 2;
+  const size_t kNumOutputChannels = 1;
+  const size_t kNumChunks = 700;
+  const float kScaleFactor = 0.25f;
+  Config config;
+  std::vector<webrtc::Point> geometry;
+  geometry.push_back(webrtc::Point(0.f, 0.f, 0.f));
+  geometry.push_back(webrtc::Point(0.05f, 0.f, 0.f));
+  config.Set<Beamforming>(new Beamforming(true, geometry));
+  testing::NiceMock<MockNonlinearBeamformer>* beamformer =
+      new testing::NiceMock<MockNonlinearBeamformer>(geometry, 1u);
+  std::unique_ptr<AudioProcessing> apm(
+      AudioProcessing::Create(config, nullptr, nullptr, beamformer));
+  EXPECT_EQ(kNoErr, apm->gain_control()->Enable(true));
+  ChannelBuffer<float> src_buf(kSamplesPerChannel, kNumInputChannels);
+  ChannelBuffer<float> dest_buf(kSamplesPerChannel, kNumOutputChannels);
+  const size_t max_length = kSamplesPerChannel * std::max(kNumInputChannels,
+                                                          kNumOutputChannels);
+  std::unique_ptr<int16_t[]> int_data(new int16_t[max_length]);
+  std::unique_ptr<float[]> float_data(new float[max_length]);
+  std::string filename = ResourceFilePath("far", kSampleRateHz);
+  FILE* far_file = fopen(filename.c_str(), "rb");
+  ASSERT_TRUE(far_file != NULL) << "Could not open file " << filename << "\n";
+  const int kDefaultVolume = apm->gain_control()->stream_analog_level();
+  const int kDefaultCompressionGain =
+      apm->gain_control()->compression_gain_db();
+  bool is_target = false;
+  EXPECT_CALL(*beamformer, is_target_present())
+      .WillRepeatedly(testing::ReturnPointee(&is_target));
+  for (size_t i = 0; i < kNumChunks; ++i) {
+    ASSERT_TRUE(ReadChunk(far_file,
+                          int_data.get(),
+                          float_data.get(),
+                          &src_buf));
+    for (size_t j = 0; j < kNumInputChannels; ++j) {
+      for (size_t k = 0; k < kSamplesPerChannel; ++k) {
+        src_buf.channels()[j][k] *= kScaleFactor;
+      }
+    }
+    EXPECT_EQ(kNoErr,
+              apm->ProcessStream(src_buf.channels(),
+                                 src_buf.num_frames(),
+                                 kSampleRateHz,
+                                 LayoutFromChannels(src_buf.num_channels()),
+                                 kSampleRateHz,
+                                 LayoutFromChannels(dest_buf.num_channels()),
+                                 dest_buf.channels()));
+  }
+  EXPECT_EQ(kDefaultVolume,
+            apm->gain_control()->stream_analog_level());
+  EXPECT_EQ(kDefaultCompressionGain,
+            apm->gain_control()->compression_gain_db());
+  rewind(far_file);
+  is_target = true;
+  for (size_t i = 0; i < kNumChunks; ++i) {
+    ASSERT_TRUE(ReadChunk(far_file,
+                          int_data.get(),
+                          float_data.get(),
+                          &src_buf));
+    for (size_t j = 0; j < kNumInputChannels; ++j) {
+      for (size_t k = 0; k < kSamplesPerChannel; ++k) {
+        src_buf.channels()[j][k] *= kScaleFactor;
+      }
+    }
+    EXPECT_EQ(kNoErr,
+              apm->ProcessStream(src_buf.channels(),
+                                 src_buf.num_frames(),
+                                 kSampleRateHz,
+                                 LayoutFromChannels(src_buf.num_channels()),
+                                 kSampleRateHz,
+                                 LayoutFromChannels(dest_buf.num_channels()),
+                                 dest_buf.channels()));
+  }
+  EXPECT_LT(kDefaultVolume,
+            apm->gain_control()->stream_analog_level());
+  EXPECT_LT(kDefaultCompressionGain,
+            apm->gain_control()->compression_gain_db());
+  ASSERT_EQ(0, fclose(far_file));
+}
+#endif
+
 TEST_F(ApmTest, NoiseSuppression) {
   // Test valid suppression levels.
   NoiseSuppression::Level level[] = {
@@ -1494,7 +1581,7 @@ TEST_F(ApmTest, NoProcessingWhenAllComponentsDisabledFloat) {
   auto src_channels = &src[0];
   auto dest_channels = &dest[0];
 
-  apm_.reset(AudioProcessingBuilder().Create());
+  apm_.reset(AudioProcessing::Create());
   EXPECT_NOERR(apm_->ProcessStream(
       &src_channels, kSamples, sample_rate, LayoutFromChannels(1),
       sample_rate, LayoutFromChannels(1), &dest_channels));
@@ -1874,8 +1961,7 @@ TEST_F(ApmTest, FloatAndIntInterfacesGiveSimilarResults) {
 
   Config config;
   config.Set<ExperimentalAgc>(new ExperimentalAgc(false));
-  std::unique_ptr<AudioProcessing> fapm(
-      AudioProcessingBuilder().Create(config));
+  std::unique_ptr<AudioProcessing> fapm(AudioProcessing::Create(config));
   EnableAllComponents();
   EnableAllAPComponents(fapm.get());
   for (int i = 0; i < ref_data.test_size(); i++) {
@@ -2027,7 +2113,7 @@ TEST_F(ApmTest, Process) {
     config.Set<ExperimentalAgc>(new ExperimentalAgc(false));
     config.Set<ExtendedFilter>(
         new ExtendedFilter(test->use_aec_extended_filter()));
-    apm_.reset(AudioProcessingBuilder().Create(config));
+    apm_.reset(AudioProcessing::Create(config));
 
     EnableAllComponents();
 
@@ -2242,7 +2328,7 @@ TEST_F(ApmTest, NoErrorsWithKeyboardChannel) {
     {AudioProcessing::kStereoAndKeyboard, AudioProcessing::kStereo},
   };
 
-  std::unique_ptr<AudioProcessing> ap(AudioProcessingBuilder().Create());
+  std::unique_ptr<AudioProcessing> ap(AudioProcessing::Create());
   // Enable one component just to ensure some processing takes place.
   ap->noise_suppression()->Enable(true);
   for (size_t i = 0; i < arraysize(cf); ++i) {
@@ -2371,8 +2457,7 @@ class AudioProcessingTest
                             const std::string& output_file_prefix) {
     Config config;
     config.Set<ExperimentalAgc>(new ExperimentalAgc(false));
-    std::unique_ptr<AudioProcessing> ap(
-        AudioProcessingBuilder().Create(config));
+    std::unique_ptr<AudioProcessing> ap(AudioProcessing::Create(config));
     EnableAllAPComponents(ap.get());
 
     ProcessingConfig processing_config = {
@@ -2730,44 +2815,107 @@ INSTANTIATE_TEST_CASE_P(
 
 }  // namespace
 
-TEST(RuntimeSettingTest, TestDefaultCtor) {
-  auto s = AudioProcessing::RuntimeSetting();
-  EXPECT_EQ(AudioProcessing::RuntimeSetting::Type::kNotSpecified, s.type());
+TEST(ApmConfiguration, DefaultBehavior) {
+  // Verify that the level controller is default off, it can be activated using
+  // the config, and that the default initial level is maintained after the
+  // config has been applied.
+  std::unique_ptr<AudioProcessingImpl> apm(
+      new rtc::RefCountedObject<AudioProcessingImpl>(webrtc::Config()));
+  AudioProcessing::Config config;
+  EXPECT_FALSE(apm->config_.level_controller.enabled);
+  // TODO(peah): Add test for the existence of the level controller object once
+  // that is created only when that is specified in the config.
+  // TODO(peah): Remove the testing for
+  // apm->capture_nonlocked_.level_controller_enabled once the value in config_
+  // is instead used to activate the level controller.
+  EXPECT_FALSE(apm->capture_nonlocked_.level_controller_enabled);
+  EXPECT_NEAR(kTargetLcPeakLeveldBFS,
+              apm->config_.level_controller.initial_peak_level_dbfs,
+              std::numeric_limits<float>::epsilon());
+  config.level_controller.enabled = true;
+  apm->ApplyConfig(config);
+  EXPECT_TRUE(apm->config_.level_controller.enabled);
+  // TODO(peah): Add test for the existence of the level controller object once
+  // that is created only when the that is specified in the config.
+  // TODO(peah): Remove the testing for
+  // apm->capture_nonlocked_.level_controller_enabled once the value in config_
+  // is instead used to activate the level controller.
+  EXPECT_TRUE(apm->capture_nonlocked_.level_controller_enabled);
+  EXPECT_NEAR(kTargetLcPeakLeveldBFS,
+              apm->config_.level_controller.initial_peak_level_dbfs,
+              std::numeric_limits<float>::epsilon());
 }
 
-TEST(RuntimeSettingTest, TestCapturePreGain) {
-  using Type = AudioProcessing::RuntimeSetting::Type;
-  {
-    auto s = AudioProcessing::RuntimeSetting::CreateCapturePreGain(1.25f);
-    EXPECT_EQ(Type::kCapturePreGain, s.type());
-    float v;
-    s.GetFloat(&v);
-    EXPECT_EQ(1.25f, v);
-  }
-
-#if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
-  EXPECT_DEATH(AudioProcessing::RuntimeSetting::CreateCapturePreGain(0.1f), "");
-#endif
+TEST(ApmConfiguration, ValidConfigBehavior) {
+  // Verify that the initial level can be specified and is retained after the
+  // config has been applied.
+  std::unique_ptr<AudioProcessingImpl> apm(
+      new rtc::RefCountedObject<AudioProcessingImpl>(webrtc::Config()));
+  AudioProcessing::Config config;
+  config.level_controller.initial_peak_level_dbfs = -50.f;
+  apm->ApplyConfig(config);
+  EXPECT_FALSE(apm->config_.level_controller.enabled);
+  // TODO(peah): Add test for the existence of the level controller object once
+  // that is created only when the that is specified in the config.
+  // TODO(peah): Remove the testing for
+  // apm->capture_nonlocked_.level_controller_enabled once the value in config_
+  // is instead used to activate the level controller.
+  EXPECT_FALSE(apm->capture_nonlocked_.level_controller_enabled);
+  EXPECT_NEAR(-50.f, apm->config_.level_controller.initial_peak_level_dbfs,
+              std::numeric_limits<float>::epsilon());
 }
 
-TEST(RuntimeSettingTest, TestUsageWithSwapQueue) {
-  SwapQueue<AudioProcessing::RuntimeSetting> q(1);
-  auto s = AudioProcessing::RuntimeSetting();
-  ASSERT_TRUE(q.Insert(&s));
-  ASSERT_TRUE(q.Remove(&s));
-  EXPECT_EQ(AudioProcessing::RuntimeSetting::Type::kNotSpecified, s.type());
+TEST(ApmConfiguration, InValidConfigBehavior) {
+  // Verify that the config is properly reset when nonproper values are applied
+  // for the initial level.
+
+  // Verify that the config is properly reset when the specified initial peak
+  // level is too low.
+  std::unique_ptr<AudioProcessingImpl> apm(
+      new rtc::RefCountedObject<AudioProcessingImpl>(webrtc::Config()));
+  AudioProcessing::Config config;
+  config.level_controller.enabled = true;
+  config.level_controller.initial_peak_level_dbfs = -101.f;
+  apm->ApplyConfig(config);
+  EXPECT_FALSE(apm->config_.level_controller.enabled);
+  // TODO(peah): Add test for the existence of the level controller object once
+  // that is created only when the that is specified in the config.
+  // TODO(peah): Remove the testing for
+  // apm->capture_nonlocked_.level_controller_enabled once the value in config_
+  // is instead used to activate the level controller.
+  EXPECT_FALSE(apm->capture_nonlocked_.level_controller_enabled);
+  EXPECT_NEAR(kTargetLcPeakLeveldBFS,
+              apm->config_.level_controller.initial_peak_level_dbfs,
+              std::numeric_limits<float>::epsilon());
+
+  // Verify that the config is properly reset when the specified initial peak
+  // level is too high.
+  apm.reset(new rtc::RefCountedObject<AudioProcessingImpl>(webrtc::Config()));
+  config = AudioProcessing::Config();
+  config.level_controller.enabled = true;
+  config.level_controller.initial_peak_level_dbfs = 1.f;
+  apm->ApplyConfig(config);
+  EXPECT_FALSE(apm->config_.level_controller.enabled);
+  // TODO(peah): Add test for the existence of the level controller object once
+  // that is created only when that is specified in the config.
+  // TODO(peah): Remove the testing for
+  // apm->capture_nonlocked_.level_controller_enabled once the value in config_
+  // is instead used to activate the level controller.
+  EXPECT_FALSE(apm->capture_nonlocked_.level_controller_enabled);
+  EXPECT_NEAR(kTargetLcPeakLeveldBFS,
+              apm->config_.level_controller.initial_peak_level_dbfs,
+              std::numeric_limits<float>::epsilon());
 }
 
 TEST(ApmConfiguration, EnablePostProcessing) {
   // Verify that apm uses a capture post processing module if one is provided.
+  webrtc::Config webrtc_config;
   auto mock_post_processor_ptr =
-      new testing::NiceMock<test::MockCustomProcessing>();
+      new testing::NiceMock<test::MockPostProcessing>();
   auto mock_post_processor =
-      std::unique_ptr<CustomProcessing>(mock_post_processor_ptr);
-  rtc::scoped_refptr<AudioProcessing> apm =
-      AudioProcessingBuilder()
-          .SetCapturePostProcessing(std::move(mock_post_processor))
-          .Create();
+      std::unique_ptr<PostProcessing>(mock_post_processor_ptr);
+  rtc::scoped_refptr<AudioProcessing> apm = AudioProcessing::Create(
+      webrtc_config, std::move(mock_post_processor), nullptr, nullptr);
 
   AudioFrame audio;
   audio.num_channels_ = 1;
@@ -2775,47 +2923,6 @@ TEST(ApmConfiguration, EnablePostProcessing) {
 
   EXPECT_CALL(*mock_post_processor_ptr, Process(testing::_)).Times(1);
   apm->ProcessStream(&audio);
-}
-
-TEST(ApmConfiguration, EnablePreProcessing) {
-  // Verify that apm uses a capture post processing module if one is provided.
-  auto mock_pre_processor_ptr =
-      new testing::NiceMock<test::MockCustomProcessing>();
-  auto mock_pre_processor =
-      std::unique_ptr<CustomProcessing>(mock_pre_processor_ptr);
-  rtc::scoped_refptr<AudioProcessing> apm =
-      AudioProcessingBuilder()
-          .SetRenderPreProcessing(std::move(mock_pre_processor))
-          .Create();
-
-  AudioFrame audio;
-  audio.num_channels_ = 1;
-  SetFrameSampleRate(&audio, AudioProcessing::NativeRate::kSampleRate16kHz);
-
-  EXPECT_CALL(*mock_pre_processor_ptr, Process(testing::_)).Times(1);
-  apm->ProcessReverseStream(&audio);
-}
-
-TEST(ApmConfiguration, PreProcessingReceivesRuntimeSettings) {
-  auto mock_pre_processor_ptr =
-      new testing::NiceMock<test::MockCustomProcessing>();
-  auto mock_pre_processor =
-      std::unique_ptr<CustomProcessing>(mock_pre_processor_ptr);
-  rtc::scoped_refptr<AudioProcessing> apm =
-      AudioProcessingBuilder()
-          .SetRenderPreProcessing(std::move(mock_pre_processor))
-          .Create();
-  apm->SetRuntimeSetting(
-      AudioProcessing::RuntimeSetting::CreateCustomRenderSetting(0));
-
-  // RuntimeSettings forwarded during 'Process*Stream' calls.
-  // Therefore we have to make one such call.
-  AudioFrame audio;
-  audio.num_channels_ = 1;
-  SetFrameSampleRate(&audio, AudioProcessing::NativeRate::kSampleRate16kHz);
-
-  EXPECT_CALL(*mock_pre_processor_ptr, SetRuntimeSetting(testing::_)).Times(1);
-  apm->ProcessReverseStream(&audio);
 }
 
 class MyEchoControlFactory : public EchoControlFactory {
@@ -2835,10 +2942,8 @@ TEST(ApmConfiguration, EchoControlInjection) {
   std::unique_ptr<EchoControlFactory> echo_control_factory(
       new MyEchoControlFactory());
 
-  rtc::scoped_refptr<AudioProcessing> apm =
-      AudioProcessingBuilder()
-          .SetEchoControlFactory(std::move(echo_control_factory))
-          .Create(webrtc_config);
+  rtc::scoped_refptr<AudioProcessing> apm = AudioProcessing::Create(
+      webrtc_config, nullptr, std::move(echo_control_factory), nullptr);
 
   AudioFrame audio;
   audio.num_channels_ = 1;
@@ -2854,8 +2959,7 @@ std::unique_ptr<AudioProcessing> CreateApm(bool use_AEC2) {
     old_config.Set<ExtendedFilter>(new ExtendedFilter(true));
     old_config.Set<DelayAgnostic>(new DelayAgnostic(true));
   }
-  std::unique_ptr<AudioProcessing> apm(
-      AudioProcessingBuilder().Create(old_config));
+  std::unique_ptr<AudioProcessing> apm(AudioProcessing::Create(old_config));
   if (!apm) {
     return apm;
   }
@@ -2870,8 +2974,10 @@ std::unique_ptr<AudioProcessing> CreateApm(bool use_AEC2) {
   // Disable all components except for an AEC and the residual echo detector.
   AudioProcessing::Config config;
   config.residual_echo_detector.enabled = true;
+  config.echo_canceller3.enabled = false;
   config.high_pass_filter.enabled = false;
   config.gain_controller2.enabled = false;
+  config.level_controller.enabled = false;
   apm->ApplyConfig(config);
   EXPECT_EQ(apm->gain_control()->Enable(false), 0);
   EXPECT_EQ(apm->level_estimator()->Enable(false), 0);

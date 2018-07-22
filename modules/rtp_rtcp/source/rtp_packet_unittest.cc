@@ -206,12 +206,12 @@ TEST(RtpPacketTest, CreateWithExtensionsWithoutManager) {
   auto raw = packet.AllocateRawExtension(kTransmissionOffsetExtensionId,
                                          TransmissionOffset::kValueSizeBytes);
   EXPECT_EQ(raw.size(), TransmissionOffset::kValueSizeBytes);
-  TransmissionOffset::Write(raw, kTimeOffset);
+  TransmissionOffset::Write(raw.data(), kTimeOffset);
 
   raw = packet.AllocateRawExtension(kAudioLevelExtensionId,
                                     AudioLevel::kValueSizeBytes);
   EXPECT_EQ(raw.size(), AudioLevel::kValueSizeBytes);
-  AudioLevel::Write(raw, kVoiceActive, kAudioLevel);
+  AudioLevel::Write(raw.data(), kVoiceActive, kAudioLevel);
 
   EXPECT_THAT(kPacketWithTOAndAL,
               ElementsAreArray(packet.data(), packet.size()));
@@ -526,7 +526,7 @@ TEST(RtpPacketTest, CreateAndParseTimingFrameExtension) {
   timing.packetization_finish_delta_ms = 3;
   timing.pacer_exit_delta_ms = 4;
   timing.flags =
-      VideoSendTiming::kTriggeredByTimer | VideoSendTiming::kTriggeredBySize;
+      TimingFrameFlags::kTriggeredByTimer + TimingFrameFlags::kTriggeredBySize;
 
   send_packet.SetExtension<VideoTimingExtension>(timing);
 

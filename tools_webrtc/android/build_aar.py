@@ -66,22 +66,7 @@ def _ParseArgs():
   parser.add_argument('--verbose', action='store_true', default=False,
       help='Debug logging.')
   parser.add_argument('--extra-gn-args', default=[], nargs='*',
-      help="""Additional GN arguments to be used during Ninja generation.
-              These are passed to gn inside `--args` switch and
-              applied after any other arguments and will
-              override any values defined by the script.
-              Example of building debug aar file:
-              build_aar.py --extra-gn-args='is_debug=true'""")
-  parser.add_argument('--extra-ninja-switches', default=[], nargs='*',
-      help="""Additional Ninja switches to be used during compilation.
-              These are applied after any other Ninja switches.
-              Example of enabling verbose Ninja output:
-              build_aar.py --extra-ninja-switches='-v'""")
-  parser.add_argument('--extra-gn-switches', default=[], nargs='*',
-      help="""Additional GN switches to be used during compilation.
-              These are applied after any other GN switches.
-              Example of enabling verbose GN output:
-              build_aar.py --extra-gn-switches='-v'""")
+      help='Additional GN args to be used during Ninja generation.')
   return parser.parse_args()
 
 
@@ -103,9 +88,9 @@ def _RunNinja(output_directory, args):
 
 def _EncodeForGN(value):
   """Encodes value as a GN literal."""
-  if isinstance(value, str):
+  if type(value) is str:
     return '"' + value + '"'
-  elif isinstance(value, bool):
+  elif type(value) is bool:
     return repr(value).lower()
   else:
     return repr(value)
@@ -142,8 +127,7 @@ def _GetArmVersion(arch):
     raise Exception('Unknown arch: ' + arch)
 
 
-def Build(build_dir, arch, use_goma, extra_gn_args, extra_gn_switches,
-          extra_ninja_switches):
+def Build(build_dir, arch, use_goma, extra_gn_args):
   """Generates target architecture using GN and builds it using ninja."""
   logging.info('Building: %s', arch)
   output_directory = _GetOutputDirectory(build_dir, arch)
@@ -161,14 +145,11 @@ def Build(build_dir, arch, use_goma, extra_gn_args, extra_gn_switches,
   gn_args_str = '--args=' + ' '.join([
       k + '=' + _EncodeForGN(v) for k, v in gn_args.items()] + extra_gn_args)
 
-  gn_args = ['gen', output_directory, gn_args_str]
-  gn_args.extend(extra_gn_switches)
-  _RunGN(gn_args)
+  _RunGN(['gen', output_directory, gn_args_str])
 
   ninja_args = TARGETS[:]
   if use_goma:
     ninja_args.extend(['-j', '200'])
-  ninja_args.extend(extra_ninja_switches)
   _RunNinja(output_directory, ninja_args)
 
 
@@ -198,16 +179,12 @@ def GenerateLicenses(output_dir, build_dir, archs):
 
 
 def BuildAar(archs, output_file, use_goma=False, extra_gn_args=None,
-             ext_build_dir=None, extra_gn_switches=None,
-             extra_ninja_switches=None):
+             ext_build_dir=None):
   extra_gn_args = extra_gn_args or []
-  extra_gn_switches = extra_gn_switches or []
-  extra_ninja_switches = extra_ninja_switches or []
   build_dir = ext_build_dir if ext_build_dir else tempfile.mkdtemp()
 
   for arch in archs:
-    Build(build_dir, arch, use_goma, extra_gn_args, extra_gn_switches,
-          extra_ninja_switches)
+    Build(build_dir, arch, use_goma, extra_gn_args)
 
   with zipfile.ZipFile(output_file, 'w') as aar_file:
     # Architecture doesn't matter here, arbitrarily using the first one.
@@ -227,7 +204,7 @@ def main():
   logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
   BuildAar(args.arch, args.output, args.use_goma, args.extra_gn_args,
-           args.build_dir, args.extra_gn_switches, args.extra_ninja_switches)
+           args.build_dir)
 
 
 if __name__ == '__main__':

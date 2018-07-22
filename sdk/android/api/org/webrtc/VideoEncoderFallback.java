@@ -23,14 +23,14 @@ public class VideoEncoderFallback extends WrappedNativeVideoEncoder {
   }
 
   @Override
-  public long createNativeVideoEncoder() {
-    return nativeCreateEncoder(fallback, primary);
+  long createNativeEncoder() {
+    return createNativeEncoder(fallback, primary);
   }
 
   @Override
-  public boolean isHardwareEncoder() {
-    return primary.isHardwareEncoder();
+  boolean isSoftwareEncoder() {
+    return isWrappedSoftwareEncoder(primary);
   }
 
-  private static native long nativeCreateEncoder(VideoEncoder fallback, VideoEncoder primary);
+  private static native long createNativeEncoder(VideoEncoder fallback, VideoEncoder primary);
 }

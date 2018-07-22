@@ -21,8 +21,6 @@
 #include <map>
 #include <string>
 
-#include "absl/memory/memory.h"
-#include "api/audio/audio_frame.h"
 #include "api/audio_codecs/L16/audio_encoder_L16.h"
 #include "api/audio_codecs/g711/audio_encoder_g711.h"
 #include "api/audio_codecs/g722/audio_encoder_g722.h"
@@ -34,6 +32,7 @@
 #include "modules/audio_coding/neteq/tools/input_audio_file.h"
 #include "rtc_base/flags.h"
 #include "rtc_base/numerics/safe_conversions.h"
+#include "rtc_base/ptr_util.h"
 #include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
@@ -164,16 +163,9 @@ void SetFrameLenIfFlagIsPositive(int* config_frame_len) {
   }
 }
 
-template <typename T>
-typename T::Config GetCodecConfig() {
-  typename T::Config config;
-  SetFrameLenIfFlagIsPositive(&config.frame_size_ms);
-  RTC_CHECK(config.IsOk());
-  return config;
-}
-
 AudioEncoderL16::Config Pcm16bConfig(CodecType codec_type) {
-  auto config = GetCodecConfig<AudioEncoderL16>();
+  AudioEncoderL16::Config config;
+  SetFrameLenIfFlagIsPositive(&config.frame_size_ms);
   switch (codec_type) {
     case CodecType::kPcm16b8:
       config.sample_rate_hz = 8000;
@@ -197,18 +189,20 @@ std::unique_ptr<AudioEncoder> CreateEncoder(CodecType codec_type,
                                             int payload_type) {
   switch (codec_type) {
     case CodecType::kOpus: {
-      AudioEncoderOpus::Config config = GetCodecConfig<AudioEncoderOpus>();
+      AudioEncoderOpusConfig config;
       if (FLAG_bitrate > 0) {
         config.bitrate_bps = FLAG_bitrate;
       }
       config.dtx_enabled = FLAG_dtx;
+      SetFrameLenIfFlagIsPositive(&config.frame_size_ms);
       RTC_CHECK(config.IsOk());
       return AudioEncoderOpus::MakeAudioEncoder(config, payload_type);
     }
 
     case CodecType::kPcmU:
     case CodecType::kPcmA: {
-      AudioEncoderG711::Config config = GetCodecConfig<AudioEncoderG711>();
+      AudioEncoderG711::Config config;
+      SetFrameLenIfFlagIsPositive(&config.frame_size_ms);
       config.type = codec_type == CodecType::kPcmU
                         ? AudioEncoderG711::Config::Type::kPcmU
                         : AudioEncoderG711::Config::Type::kPcmA;
@@ -217,8 +211,10 @@ std::unique_ptr<AudioEncoder> CreateEncoder(CodecType codec_type,
     }
 
     case CodecType::kG722: {
-      return AudioEncoderG722::MakeAudioEncoder(
-          GetCodecConfig<AudioEncoderG722>(), payload_type);
+      AudioEncoderG722Config config;
+      SetFrameLenIfFlagIsPositive(&config.frame_size_ms);
+      RTC_CHECK(config.IsOk());
+      return AudioEncoderG722::MakeAudioEncoder(config, payload_type);
     }
 
     case CodecType::kPcm16b8:
@@ -230,13 +226,17 @@ std::unique_ptr<AudioEncoder> CreateEncoder(CodecType codec_type,
     }
 
     case CodecType::kIlbc: {
-      return AudioEncoderIlbc::MakeAudioEncoder(
-          GetCodecConfig<AudioEncoderIlbc>(), payload_type);
+      AudioEncoderIlbcConfig config;
+      SetFrameLenIfFlagIsPositive(&config.frame_size_ms);
+      RTC_CHECK(config.IsOk());
+      return AudioEncoderIlbc::MakeAudioEncoder(config, payload_type);
     }
 
     case CodecType::kIsac: {
-      return AudioEncoderIsac::MakeAudioEncoder(
-          GetCodecConfig<AudioEncoderIsac>(), payload_type);
+      AudioEncoderIsac::Config config;
+      SetFrameLenIfFlagIsPositive(&config.frame_size_ms);
+      RTC_CHECK(config.IsOk());
+      return AudioEncoderIsac::MakeAudioEncoder(config, payload_type);
     }
   }
   RTC_NOTREACHED();
@@ -247,16 +247,11 @@ AudioEncoderCng::Config GetCngConfig(int sample_rate_hz) {
   AudioEncoderCng::Config cng_config;
   const auto default_payload_type = [&] {
     switch (sample_rate_hz) {
-      case 8000:
-        return 13;
-      case 16000:
-        return 98;
-      case 32000:
-        return 99;
-      case 48000:
-        return 100;
-      default:
-        RTC_NOTREACHED();
+      case 8000: return 13;
+      case 16000: return 98;
+      case 32000: return 99;
+      case 48000: return 100;
+      default: RTC_NOTREACHED();
     }
     return 0;
   };
@@ -313,7 +308,7 @@ int RunRtpEncode(int argc, char* argv[]) {
     AudioEncoderCng::Config cng_config = GetCngConfig(codec->SampleRateHz());
     RTC_DCHECK(codec);
     cng_config.speech_encoder = std::move(codec);
-    codec = absl::make_unique<AudioEncoderCng>(std::move(cng_config));
+    codec = rtc::MakeUnique<AudioEncoderCng>(std::move(cng_config));
   }
   RTC_DCHECK(codec);
 

@@ -29,16 +29,16 @@ class SocketAddress;
 const int HTTP_INVALID_CONNECTION_ID = 0;
 
 struct HttpServerTransaction : public HttpTransaction {
- public:
-  HttpServerTransaction(int id) : connection_id_(id) {}
+public:
+  HttpServerTransaction(int id) : connection_id_(id) { }
   int connection_id() const { return connection_id_; }
 
- private:
+private:
   int connection_id_;
 };
 
 class HttpServer {
- public:
+public:
   HttpServer();
   virtual ~HttpServer();
 
@@ -54,7 +54,7 @@ class HttpServer {
   // the document can be set to null.  Note that the transaction object is still
   // owened by the HttpServer at this point.
   sigslot::signal3<HttpServer*, HttpServerTransaction*, bool*>
-      SignalHttpRequestHeader;
+    SignalHttpRequestHeader;
 
   // An HTTP request has been made, and is available in the transaction object.
   // Populate the transaction's response, and then return the object via the
@@ -66,7 +66,7 @@ class HttpServer {
 
   // If you want to know when a request completes, listen to this event.
   sigslot::signal3<HttpServer*, HttpServerTransaction*, int>
-      SignalHttpRequestComplete;
+    SignalHttpRequestComplete;
 
   // Stop processing the connection indicated by connection_id.
   // Unless force is true, the server will complete sending a response that is
@@ -78,9 +78,9 @@ class HttpServer {
   // outstanding connections have closed.
   sigslot::signal1<HttpServer*> SignalCloseAllComplete;
 
- private:
+private:
   class Connection : private IHttpNotify {
-   public:
+  public:
     Connection(int connection_id, HttpServer* server);
     ~Connection() override;
 
@@ -106,7 +106,7 @@ class HttpServer {
   void Remove(int connection_id);
 
   friend class Connection;
-  typedef std::map<int, Connection*> ConnectionMap;
+  typedef std::map<int,Connection*> ConnectionMap;
 
   ConnectionMap connections_;
   int next_connection_id_;
@@ -116,7 +116,7 @@ class HttpServer {
 //////////////////////////////////////////////////////////////////////
 
 class HttpListenServer : public HttpServer, public sigslot::has_slots<> {
- public:
+public:
   HttpListenServer();
   ~HttpListenServer() override;
 
@@ -124,10 +124,9 @@ class HttpListenServer : public HttpServer, public sigslot::has_slots<> {
   bool GetAddress(SocketAddress* address) const;
   void StopListening();
 
- private:
+private:
   void OnReadEvent(AsyncSocket* socket);
-  void OnConnectionClosed(HttpServer* server,
-                          int connection_id,
+  void OnConnectionClosed(HttpServer* server, int connection_id,
                           StreamInterface* stream);
 
   std::unique_ptr<AsyncSocket> listener_;
@@ -137,4 +136,4 @@ class HttpListenServer : public HttpServer, public sigslot::has_slots<> {
 
 }  // namespace rtc
 
-#endif  // RTC_BASE_HTTPSERVER_H_
+#endif // RTC_BASE_HTTPSERVER_H_

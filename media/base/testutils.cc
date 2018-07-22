@@ -29,8 +29,7 @@ namespace cricket {
 /////////////////////////////////////////////////////////////////////////
 void RawRtpPacket::WriteToByteBuffer(uint32_t in_ssrc,
                                      rtc::ByteBufferWriter* buf) const {
-  if (!buf)
-    return;
+  if (!buf) return;
 
   buf->WriteUInt8(ver_to_cc);
   buf->WriteUInt8(m_to_pt);
@@ -41,8 +40,7 @@ void RawRtpPacket::WriteToByteBuffer(uint32_t in_ssrc,
 }
 
 bool RawRtpPacket::ReadFromByteBuffer(rtc::ByteBufferReader* buf) {
-  if (!buf)
-    return false;
+  if (!buf) return false;
 
   bool ret = true;
   ret &= buf->ReadUInt8(&ver_to_cc);
@@ -58,17 +56,19 @@ bool RawRtpPacket::SameExceptSeqNumTimestampSsrc(const RawRtpPacket& packet,
                                                  uint16_t seq,
                                                  uint32_t ts,
                                                  uint32_t ssc) const {
-  return sequence_number == seq && timestamp == ts &&
-         ver_to_cc == packet.ver_to_cc && m_to_pt == packet.m_to_pt &&
-         ssrc == ssc && 0 == memcmp(payload, packet.payload, sizeof(payload));
+  return sequence_number == seq &&
+      timestamp == ts &&
+      ver_to_cc == packet.ver_to_cc &&
+      m_to_pt == packet.m_to_pt &&
+      ssrc == ssc &&
+      0 == memcmp(payload, packet.payload, sizeof(payload));
 }
 
 /////////////////////////////////////////////////////////////////////////
 // Implementation of RawRtcpPacket
 /////////////////////////////////////////////////////////////////////////
-void RawRtcpPacket::WriteToByteBuffer(rtc::ByteBufferWriter* buf) const {
-  if (!buf)
-    return;
+void RawRtcpPacket::WriteToByteBuffer(rtc::ByteBufferWriter *buf) const {
+  if (!buf) return;
 
   buf->WriteUInt8(ver_to_count);
   buf->WriteUInt8(type);
@@ -77,8 +77,7 @@ void RawRtcpPacket::WriteToByteBuffer(rtc::ByteBufferWriter* buf) const {
 }
 
 bool RawRtcpPacket::ReadFromByteBuffer(rtc::ByteBufferReader* buf) {
-  if (!buf)
-    return false;
+  if (!buf) return false;
 
   bool ret = true;
   ret &= buf->ReadUInt8(&ver_to_count);
@@ -89,9 +88,10 @@ bool RawRtcpPacket::ReadFromByteBuffer(rtc::ByteBufferReader* buf) {
 }
 
 bool RawRtcpPacket::EqualsTo(const RawRtcpPacket& packet) const {
-  return ver_to_count == packet.ver_to_count && type == packet.type &&
-         length == packet.length &&
-         0 == memcmp(payload, packet.payload, sizeof(payload));
+  return ver_to_count == packet.ver_to_count &&
+      type == packet.type &&
+      length == packet.length &&
+      0 == memcmp(payload, packet.payload, sizeof(payload));
 }
 
 // Implementation of VideoCaptureListener.
@@ -103,7 +103,7 @@ VideoCapturerListener::VideoCapturerListener(VideoCapturer* capturer)
       frame_height_(0),
       resolution_changed_(false) {
   capturer->SignalStateChange.connect(this,
-                                      &VideoCapturerListener::OnStateChange);
+      &VideoCapturerListener::OnStateChange);
   capturer->AddOrUpdateSink(this, rtc::VideoSinkWants());
 }
 

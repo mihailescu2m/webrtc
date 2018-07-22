@@ -8,14 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "logging/rtc_event_log/output/rtc_event_log_output_file.h"
-
 #include <fstream>
 #include <memory>
 #include <string>
 
-#include "absl/memory/memory.h"
-#include "rtc_base/checks.h"
+#include "logging/rtc_event_log/output/rtc_event_log_output_file.h"
+#include "rtc_base/ptr_util.h"
 #include "test/gtest.h"
 #include "test/testsupport/fileutils.h"
 
@@ -51,14 +49,13 @@ class RtcEventLogOutputFileTest : public ::testing::Test {
 };
 
 TEST_F(RtcEventLogOutputFileTest, NonDefectiveOutputsStartOutActive) {
-  auto output_file =
-      absl::make_unique<RtcEventLogOutputFile>(output_file_name_);
+  auto output_file = rtc::MakeUnique<RtcEventLogOutputFile>(output_file_name_);
   EXPECT_TRUE(output_file->IsActive());
 }
 
 TEST_F(RtcEventLogOutputFileTest, DefectiveOutputsStartOutInactive) {
   const std::string illegal_filename = "/////////";
-  auto output_file = absl::make_unique<RtcEventLogOutputFile>(illegal_filename);
+  auto output_file = rtc::MakeUnique<RtcEventLogOutputFile>(illegal_filename);
   EXPECT_FALSE(output_file->IsActive());
 }
 
@@ -66,8 +63,7 @@ TEST_F(RtcEventLogOutputFileTest, DefectiveOutputsStartOutInactive) {
 TEST_F(RtcEventLogOutputFileTest, UnlimitedOutputFile) {
   const std::string output_str = "one two three";
 
-  auto output_file =
-      absl::make_unique<RtcEventLogOutputFile>(output_file_name_);
+  auto output_file = rtc::MakeUnique<RtcEventLogOutputFile>(output_file_name_);
   output_file->Write(output_str);
   output_file.reset();  // Closing the file flushes the buffer to disk.
 
@@ -78,7 +74,7 @@ TEST_F(RtcEventLogOutputFileTest, UnlimitedOutputFile) {
 TEST_F(RtcEventLogOutputFileTest, LimitedOutputFileCappedToCapacity) {
   // Fit two bytes, then the third should be rejected.
   auto output_file =
-      absl::make_unique<RtcEventLogOutputFile>(output_file_name_, 2);
+      rtc::MakeUnique<RtcEventLogOutputFile>(output_file_name_, 2);
 
   output_file->Write("1");
   output_file->Write("2");
@@ -98,7 +94,7 @@ TEST_F(RtcEventLogOutputFileTest, DoNotWritePartialLines) {
   // Set a file size limit just shy of fitting the entire second line.
   const size_t size_limit = output_str_1.length() + output_str_2.length() - 1;
   auto output_file =
-      absl::make_unique<RtcEventLogOutputFile>(output_file_name_, size_limit);
+      rtc::MakeUnique<RtcEventLogOutputFile>(output_file_name_, size_limit);
 
   output_file->Write(output_str_1);
   output_file->Write(output_str_2);
@@ -109,20 +105,20 @@ TEST_F(RtcEventLogOutputFileTest, DoNotWritePartialLines) {
 
 TEST_F(RtcEventLogOutputFileTest, UnsuccessfulWriteReturnsFalse) {
   auto output_file =
-      absl::make_unique<RtcEventLogOutputFile>(output_file_name_, 2);
+      rtc::MakeUnique<RtcEventLogOutputFile>(output_file_name_, 2);
   EXPECT_FALSE(output_file->Write("abc"));
 }
 
 TEST_F(RtcEventLogOutputFileTest, SuccessfulWriteReturnsTrue) {
   auto output_file =
-      absl::make_unique<RtcEventLogOutputFile>(output_file_name_, 3);
+      rtc::MakeUnique<RtcEventLogOutputFile>(output_file_name_, 3);
   EXPECT_TRUE(output_file->Write("abc"));
 }
 
 // Even if capacity is reached, a successful write leaves the output active.
 TEST_F(RtcEventLogOutputFileTest, FileStillActiveAfterSuccessfulWrite) {
   auto output_file =
-      absl::make_unique<RtcEventLogOutputFile>(output_file_name_, 3);
+      rtc::MakeUnique<RtcEventLogOutputFile>(output_file_name_, 3);
   ASSERT_TRUE(output_file->Write("abc"));
   EXPECT_TRUE(output_file->IsActive());
 }
@@ -131,13 +127,13 @@ TEST_F(RtcEventLogOutputFileTest, FileStillActiveAfterSuccessfulWrite) {
 // not yet been reached.
 TEST_F(RtcEventLogOutputFileTest, FileInactiveAfterUnsuccessfulWrite) {
   auto output_file =
-      absl::make_unique<RtcEventLogOutputFile>(output_file_name_, 2);
+      rtc::MakeUnique<RtcEventLogOutputFile>(output_file_name_, 2);
   ASSERT_FALSE(output_file->Write("abc"));
   EXPECT_FALSE(output_file->IsActive());
 }
 
 TEST_F(RtcEventLogOutputFileTest, AllowReasonableFileSizeLimits) {
-  auto output_file = absl::make_unique<RtcEventLogOutputFile>(
+  auto output_file = rtc::MakeUnique<RtcEventLogOutputFile>(
       output_file_name_, RtcEventLogOutputFile::kMaxReasonableFileSize);
   EXPECT_TRUE(output_file->IsActive());
 }
@@ -158,8 +154,8 @@ TEST_F(RtcEventLogOutputFileTest, DisallowUnreasonableFileSizeLimits) {
   auto create_output_file = [&] {
     const size_t unreasonable_size =
         RtcEventLogOutputFile::kMaxReasonableFileSize + 1;
-    output_file = absl::make_unique<RtcEventLogOutputFile>(output_file_name_,
-                                                           unreasonable_size);
+    output_file = rtc::MakeUnique<RtcEventLogOutputFile>(output_file_name_,
+                                                         unreasonable_size);
   };
   EXPECT_DEATH(create_output_file(), "");
 }

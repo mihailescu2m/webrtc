@@ -19,7 +19,6 @@
 #include "rtc_base/pathutils.h"
 #include "rtc_base/platform_file.h"
 #include "test/gtest.h"
-#include "test/testsupport/fileutils.h"
 
 DECLARE_string(test_artifacts_dir);
 
@@ -43,7 +42,7 @@ TEST(IsolatedOutputTest, ShouldBeAbleToWriteContent) {
   const char* filename = "a-file";
   const char* content = "some-contents";
   if (WriteToTestArtifactsDir(filename, content)) {
-    std::string out_file = JoinFilename(FLAG_test_artifacts_dir, filename);
+    rtc::Pathname out_file(FLAG_test_artifacts_dir, filename);
     rtc::File input = rtc::File::Open(out_file);
     EXPECT_TRUE(input.IsOpen());
     EXPECT_TRUE(input.Seek(0));

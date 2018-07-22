@@ -19,10 +19,10 @@
 
 #import "RTCMTLRenderer+Private.h"
 
-static NSString *const shaderSource = MTL_STRINGIFY(
-    using namespace metal;
+#define MTL_STRINGIFY(s) @ #s
 
-    typedef struct {
+static NSString *const shaderSource = MTL_STRINGIFY(
+    using namespace metal; typedef struct {
       packed_float2 position;
       packed_float2 texcoord;
     } Vertex;
@@ -89,25 +89,8 @@ static NSString *const shaderSource = MTL_STRINGIFY(
   return shaderSource;
 }
 
-- (void)getWidth:(nonnull int *)width
-          height:(nonnull int *)height
-       cropWidth:(nonnull int *)cropWidth
-      cropHeight:(nonnull int *)cropHeight
-           cropX:(nonnull int *)cropX
-           cropY:(nonnull int *)cropY
-         ofFrame:(nonnull RTCVideoFrame *)frame {
-  *width = frame.width;
-  *height = frame.height;
-  *cropWidth = frame.width;
-  *cropHeight = frame.height;
-  *cropX = 0;
-  *cropY = 0;
-}
-
 - (BOOL)setupTexturesForFrame:(nonnull RTCVideoFrame *)frame {
-  if (![super setupTexturesForFrame:frame]) {
-    return NO;
-  }
+  [super setupTexturesForFrame:frame];
 
   id<MTLDevice> device = [self currentMetalDevice];
   if (!device) {

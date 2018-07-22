@@ -10,7 +10,6 @@
 
 #include "pc/trackmediainfomap.h"
 
-#include <string>
 #include <utility>
 
 namespace webrtc {
@@ -30,8 +29,8 @@ const V* FindAddressOrNull(const std::map<K, V>& map, const K& key) {
 }
 
 void GetAudioAndVideoTrackBySsrc(
-    const std::vector<rtc::scoped_refptr<RtpSenderInternal>>& rtp_senders,
-    const std::vector<rtc::scoped_refptr<RtpReceiverInternal>>& rtp_receivers,
+    const std::vector<rtc::scoped_refptr<RtpSenderInterface>>& rtp_senders,
+    const std::vector<rtc::scoped_refptr<RtpReceiverInterface>>& rtp_receivers,
     std::map<uint32_t, AudioTrackInterface*>* local_audio_track_by_ssrc,
     std::map<uint32_t, VideoTrackInterface*>* local_video_track_by_ssrc,
     std::map<uint32_t, AudioTrackInterface*>* remote_audio_track_by_ssrc,
@@ -47,7 +46,7 @@ void GetAudioAndVideoTrackBySsrc(
   // means one thread jump if on signaling thread and two thread jumps if on any
   // other threads). Is there a way to avoid thread jump(s) on a per
   // sender/receiver, per method basis?
-  for (auto rtp_sender : rtp_senders) {
+  for (const rtc::scoped_refptr<RtpSenderInterface>& rtp_sender : rtp_senders) {
     cricket::MediaType media_type = rtp_sender->media_type();
     MediaStreamTrackInterface* track = rtp_sender->track();
     if (!track) {
@@ -72,7 +71,8 @@ void GetAudioAndVideoTrackBySsrc(
       }
     }
   }
-  for (auto rtp_receiver : rtp_receivers) {
+  for (const rtc::scoped_refptr<RtpReceiverInterface>& rtp_receiver :
+       rtp_receivers) {
     cricket::MediaType media_type = rtp_receiver->media_type();
     MediaStreamTrackInterface* track = rtp_receiver->track();
     RTC_DCHECK(track);
@@ -110,8 +110,8 @@ void GetAudioAndVideoTrackBySsrc(
 TrackMediaInfoMap::TrackMediaInfoMap(
     std::unique_ptr<cricket::VoiceMediaInfo> voice_media_info,
     std::unique_ptr<cricket::VideoMediaInfo> video_media_info,
-    const std::vector<rtc::scoped_refptr<RtpSenderInternal>>& rtp_senders,
-    const std::vector<rtc::scoped_refptr<RtpReceiverInternal>>& rtp_receivers)
+    const std::vector<rtc::scoped_refptr<RtpSenderInterface>>& rtp_senders,
+    const std::vector<rtc::scoped_refptr<RtpReceiverInterface>>& rtp_receivers)
     : voice_media_info_(std::move(voice_media_info)),
       video_media_info_(std::move(video_media_info)) {
   std::map<uint32_t, AudioTrackInterface*> local_audio_track_by_ssrc;
@@ -125,14 +125,6 @@ TrackMediaInfoMap::TrackMediaInfoMap(
       &local_video_track_by_ssrc, &remote_audio_track_by_ssrc,
       &remote_video_track_by_ssrc, &unsignaled_audio_track,
       &unsignaled_video_track);
-
-  for (auto sender : rtp_senders) {
-    attachment_id_by_track_[sender->track()] = sender->AttachmentId();
-  }
-  for (auto receiver : rtp_receivers) {
-    attachment_id_by_track_[receiver->track()] = receiver->AttachmentId();
-  }
-
   if (voice_media_info_) {
     for (auto& sender_info : voice_media_info_->senders) {
       AudioTrackInterface* associated_track =
@@ -143,11 +135,6 @@ TrackMediaInfoMap::TrackMediaInfoMap(
         audio_track_by_sender_info_[&sender_info] = associated_track;
         voice_infos_by_local_track_[associated_track].push_back(&sender_info);
       }
-      if (sender_info.ssrc() == 0)
-        continue;  // Unconnected SSRC. bugs.webrtc.org/8673
-      RTC_CHECK(voice_info_by_sender_ssrc_.count(sender_info.ssrc()) == 0)
-          << "Duplicate voice sender SSRC: " << sender_info.ssrc();
-      voice_info_by_sender_ssrc_[sender_info.ssrc()] = &sender_info;
     }
     for (auto& receiver_info : voice_media_info_->receivers) {
       AudioTrackInterface* associated_track =
@@ -163,9 +150,6 @@ TrackMediaInfoMap::TrackMediaInfoMap(
         audio_track_by_receiver_info_[&receiver_info] = unsignaled_audio_track;
         voice_info_by_remote_track_[unsignaled_audio_track] = &receiver_info;
       }
-      RTC_CHECK(voice_info_by_receiver_ssrc_.count(receiver_info.ssrc()) == 0)
-          << "Duplicate voice receiver SSRC: " << receiver_info.ssrc();
-      voice_info_by_receiver_ssrc_[receiver_info.ssrc()] = &receiver_info;
     }
   }
   if (video_media_info_) {
@@ -178,11 +162,6 @@ TrackMediaInfoMap::TrackMediaInfoMap(
         video_track_by_sender_info_[&sender_info] = associated_track;
         video_infos_by_local_track_[associated_track].push_back(&sender_info);
       }
-      if (sender_info.ssrc() == 0)
-        continue;  // Unconnected SSRC. bugs.webrtc.org/8673
-      RTC_DCHECK(video_info_by_sender_ssrc_.count(sender_info.ssrc()) == 0)
-          << "Duplicate video sender SSRC: " << sender_info.ssrc();
-      video_info_by_sender_ssrc_[sender_info.ssrc()] = &sender_info;
     }
     for (auto& receiver_info : video_media_info_->receivers) {
       VideoTrackInterface* associated_track =
@@ -198,9 +177,6 @@ TrackMediaInfoMap::TrackMediaInfoMap(
         video_track_by_receiver_info_[&receiver_info] = unsignaled_video_track;
         video_info_by_remote_track_[unsignaled_video_track] = &receiver_info;
       }
-      RTC_DCHECK(video_info_by_receiver_ssrc_.count(receiver_info.ssrc()) == 0)
-          << "Duplicate video receiver SSRC: " << receiver_info.ssrc();
-      video_info_by_receiver_ssrc_[receiver_info.ssrc()] = &receiver_info;
     }
   }
 }
@@ -227,25 +203,6 @@ const cricket::VideoReceiverInfo* TrackMediaInfoMap::GetVideoReceiverInfo(
   return FindValueOrNull(video_info_by_remote_track_, &remote_video_track);
 }
 
-const cricket::VoiceSenderInfo* TrackMediaInfoMap::GetVoiceSenderInfoBySsrc(
-    uint32_t ssrc) const {
-  return FindValueOrNull(voice_info_by_sender_ssrc_, ssrc);
-}
-const cricket::VoiceReceiverInfo* TrackMediaInfoMap::GetVoiceReceiverInfoBySsrc(
-    uint32_t ssrc) const {
-  return FindValueOrNull(voice_info_by_receiver_ssrc_, ssrc);
-}
-
-const cricket::VideoSenderInfo* TrackMediaInfoMap::GetVideoSenderInfoBySsrc(
-    uint32_t ssrc) const {
-  return FindValueOrNull(video_info_by_sender_ssrc_, ssrc);
-}
-
-const cricket::VideoReceiverInfo* TrackMediaInfoMap::GetVideoReceiverInfoBySsrc(
-    uint32_t ssrc) const {
-  return FindValueOrNull(video_info_by_receiver_ssrc_, ssrc);
-}
-
 rtc::scoped_refptr<AudioTrackInterface> TrackMediaInfoMap::GetAudioTrack(
     const cricket::VoiceSenderInfo& voice_sender_info) const {
   return FindValueOrNull(audio_track_by_sender_info_, &voice_sender_info);
@@ -264,13 +221,6 @@ rtc::scoped_refptr<VideoTrackInterface> TrackMediaInfoMap::GetVideoTrack(
 rtc::scoped_refptr<VideoTrackInterface> TrackMediaInfoMap::GetVideoTrack(
     const cricket::VideoReceiverInfo& video_receiver_info) const {
   return FindValueOrNull(video_track_by_receiver_info_, &video_receiver_info);
-}
-
-absl::optional<int> TrackMediaInfoMap::GetAttachmentIdByTrack(
-    const MediaStreamTrackInterface* track) const {
-  auto it = attachment_id_by_track_.find(track);
-  return it != attachment_id_by_track_.end() ? absl::optional<int>(it->second)
-                                             : absl::nullopt;
 }
 
 }  // namespace webrtc

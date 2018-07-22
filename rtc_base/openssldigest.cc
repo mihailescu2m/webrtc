@@ -16,18 +16,16 @@
 namespace rtc {
 
 OpenSSLDigest::OpenSSLDigest(const std::string& algorithm) {
-  ctx_ = EVP_MD_CTX_new();
-  RTC_CHECK(ctx_ != nullptr);
-  EVP_MD_CTX_init(ctx_);
+  EVP_MD_CTX_init(&ctx_);
   if (GetDigestEVP(algorithm, &md_)) {
-    EVP_DigestInit_ex(ctx_, md_, nullptr);
+    EVP_DigestInit_ex(&ctx_, md_, nullptr);
   } else {
     md_ = nullptr;
   }
 }
 
 OpenSSLDigest::~OpenSSLDigest() {
-  EVP_MD_CTX_destroy(ctx_);
+  EVP_MD_CTX_cleanup(&ctx_);
 }
 
 size_t OpenSSLDigest::Size() const {
@@ -41,7 +39,7 @@ void OpenSSLDigest::Update(const void* buf, size_t len) {
   if (!md_) {
     return;
   }
-  EVP_DigestUpdate(ctx_, buf, len);
+  EVP_DigestUpdate(&ctx_, buf, len);
 }
 
 size_t OpenSSLDigest::Finish(void* buf, size_t len) {
@@ -49,8 +47,8 @@ size_t OpenSSLDigest::Finish(void* buf, size_t len) {
     return 0;
   }
   unsigned int md_len;
-  EVP_DigestFinal_ex(ctx_, static_cast<unsigned char*>(buf), &md_len);
-  EVP_DigestInit_ex(ctx_, md_, nullptr);  // prepare for future Update()s
+  EVP_DigestFinal_ex(&ctx_, static_cast<unsigned char*>(buf), &md_len);
+  EVP_DigestInit_ex(&ctx_, md_, nullptr);  // prepare for future Update()s
   RTC_DCHECK(md_len == Size());
   return md_len;
 }
@@ -80,7 +78,8 @@ bool OpenSSLDigest::GetDigestEVP(const std::string& algorithm,
   return true;
 }
 
-bool OpenSSLDigest::GetDigestName(const EVP_MD* md, std::string* algorithm) {
+bool OpenSSLDigest::GetDigestName(const EVP_MD* md,
+                                  std::string* algorithm) {
   RTC_DCHECK(md != nullptr);
   RTC_DCHECK(algorithm != nullptr);
 
@@ -107,7 +106,7 @@ bool OpenSSLDigest::GetDigestName(const EVP_MD* md, std::string* algorithm) {
 
 bool OpenSSLDigest::GetDigestSize(const std::string& algorithm,
                                   size_t* length) {
-  const EVP_MD* md;
+  const EVP_MD *md;
   if (!GetDigestEVP(algorithm, &md))
     return false;
 

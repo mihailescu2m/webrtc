@@ -13,13 +13,14 @@
 #include <utility>
 #include <vector>
 
-#include "call/video_send_stream.h"
 #include "rtc_base/criticalsection.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/platform_thread.h"
 #include "rtc_base/task_queue.h"
 #include "rtc_base/timeutils.h"
 #include "system_wrappers/include/clock.h"
+#include "test/frame_generator.h"
+#include "call/video_send_stream.h"
 
 namespace webrtc {
 namespace test {
@@ -84,16 +85,25 @@ class FrameGeneratorCapturer::InsertFrameTask : public rtc::QueuedTask {
   int64_t intended_run_time_ms_;
 };
 
-FrameGeneratorCapturer* FrameGeneratorCapturer::Create(
-    int width,
-    int height,
-    absl::optional<FrameGenerator::OutputType> type,
-    absl::optional<int> num_squares,
-    int target_fps,
-    Clock* clock) {
+FrameGeneratorCapturer* FrameGeneratorCapturer::Create(int width,
+                                                       int height,
+                                                       int target_fps,
+                                                       Clock* clock) {
   std::unique_ptr<FrameGeneratorCapturer> capturer(new FrameGeneratorCapturer(
-      clock,
-      FrameGenerator::CreateSquareGenerator(width, height, type, num_squares),
+      clock, FrameGenerator::CreateSquareGenerator(width, height), target_fps));
+  if (!capturer->Init())
+    return nullptr;
+
+  return capturer.release();
+}
+
+FrameGeneratorCapturer* FrameGeneratorCapturer::Create(int width,
+                                                       int height,
+                                                       int num_squares,
+                                                       int target_fps,
+                                                       Clock* clock) {
+  std::unique_ptr<FrameGeneratorCapturer> capturer(new FrameGeneratorCapturer(
+      clock, FrameGenerator::CreateSquareGenerator(width, height, num_squares),
       target_fps));
   if (!capturer->Init())
     return nullptr;
@@ -125,8 +135,8 @@ FrameGeneratorCapturer* FrameGeneratorCapturer::CreateSlideGenerator(
     int target_fps,
     Clock* clock) {
   std::unique_ptr<FrameGeneratorCapturer> capturer(new FrameGeneratorCapturer(
-      clock,
-      FrameGenerator::CreateSlideGenerator(width, height, frame_repeat_count),
+      clock, FrameGenerator::CreateSlideGenerator(width, height,
+                                                  frame_repeat_count),
       target_fps));
   if (!capturer->Init())
     return nullptr;
@@ -145,7 +155,8 @@ FrameGeneratorCapturer::FrameGeneratorCapturer(
       frame_generator_(std::move(frame_generator)),
       target_fps_(target_fps),
       first_frame_capture_time_(-1),
-      task_queue_("FrameGenCapQ", rtc::TaskQueue::Priority::HIGH) {
+      task_queue_("FrameGenCapQ",
+                  rtc::TaskQueue::Priority::HIGH) {
   RTC_DCHECK(frame_generator_);
   RTC_DCHECK_GT(target_fps, 0);
 }
@@ -186,7 +197,7 @@ void FrameGeneratorCapturer::InsertFrame() {
     }
 
     if (sink_) {
-      absl::optional<VideoFrame> out_frame = AdaptFrame(*frame);
+      rtc::Optional<VideoFrame> out_frame = AdaptFrame(*frame);
       if (out_frame)
         sink_->OnFrame(*out_frame);
     }

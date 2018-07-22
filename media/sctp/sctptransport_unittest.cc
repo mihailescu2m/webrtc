@@ -31,7 +31,7 @@ static const int kDefaultTimeout = 10000;  // 10 seconds.
 // Use ports other than the default 5000 for testing.
 static const int kTransport1Port = 5001;
 static const int kTransport2Port = 5002;
-}  // namespace
+}
 
 namespace cricket {
 
@@ -67,54 +67,56 @@ class SctpFakeDataReceiver : public sigslot::has_slots<> {
   ReceiveDataParams last_params_;
 };
 
-class SctpTransportObserver : public sigslot::has_slots<> {
+class SignalReadyToSendObserver : public sigslot::has_slots<> {
  public:
-  explicit SctpTransportObserver(SctpTransport* transport) {
-    transport->SignalClosingProcedureComplete.connect(
-        this, &SctpTransportObserver::OnClosingProcedureComplete);
-    transport->SignalReadyToSendData.connect(
-        this, &SctpTransportObserver::OnReadyToSend);
-  }
+  SignalReadyToSendObserver() : signaled_(false) {}
 
-  int StreamCloseCount(int stream) {
-    return std::count(closed_streams_.begin(), closed_streams_.end(), stream);
-  }
+  void OnSignaled() { signaled_ = true; }
 
-  bool WasStreamClosed(int stream) {
-    return std::find(closed_streams_.begin(), closed_streams_.end(), stream) !=
-           closed_streams_.end();
-  }
-
-  bool ReadyToSend() { return ready_to_send_; }
+  bool IsSignaled() { return signaled_; }
 
  private:
-  void OnClosingProcedureComplete(int stream) {
-    closed_streams_.push_back(stream);
-  }
-  void OnReadyToSend() { ready_to_send_ = true; }
-
-  std::vector<int> closed_streams_;
-  bool ready_to_send_ = false;
+  bool signaled_;
 };
 
-// Helper class used to immediately attempt to reopen a stream as soon as it's
-// been closed.
-class SignalTransportClosedReopener : public sigslot::has_slots<> {
+class SignalTransportClosedObserver : public sigslot::has_slots<> {
  public:
-  SignalTransportClosedReopener(SctpTransport* transport, SctpTransport* peer)
-      : transport_(transport), peer_(peer) {}
+  SignalTransportClosedObserver() {}
+  void BindSelf(SctpTransport* transport) {
+    transport->SignalStreamClosedRemotely.connect(
+        this, &SignalTransportClosedObserver::OnStreamClosed);
+  }
+  void OnStreamClosed(int stream) { streams_.push_back(stream); }
 
   int StreamCloseCount(int stream) {
     return std::count(streams_.begin(), streams_.end(), stream);
   }
 
+  bool WasStreamClosed(int stream) {
+    return std::find(streams_.begin(), streams_.end(), stream) !=
+           streams_.end();
+  }
+
  private:
+  std::vector<int> streams_;
+};
+
+class SignalTransportClosedReopener : public sigslot::has_slots<> {
+ public:
+  SignalTransportClosedReopener(SctpTransport* transport, SctpTransport* peer)
+      : transport_(transport), peer_(peer) {}
+
   void OnStreamClosed(int stream) {
     transport_->OpenStream(stream);
     peer_->OpenStream(stream);
     streams_.push_back(stream);
   }
 
+  int StreamCloseCount(int stream) {
+    return std::count(streams_.begin(), streams_.end(), stream);
+  }
+
+ private:
   SctpTransport* transport_;
   SctpTransport* peer_;
   std::vector<int> streams_;
@@ -236,16 +238,16 @@ class SctpTransportTest : public testing::Test, public sigslot::has_slots<> {
 };
 
 // Test that data can be sent end-to-end when an SCTP transport starts with one
-// transport (which is unwritable), and then switches to another transport. A
-// common scenario due to how BUNDLE works.
-TEST_F(SctpTransportTest, SwitchDtlsTransport) {
+// transport channel (which is unwritable), and then switches to another
+// channel. A common scenario due to how BUNDLE works.
+TEST_F(SctpTransportTest, SwitchTransportChannel) {
   FakeDtlsTransport black_hole("black hole", 0);
   FakeDtlsTransport fake_dtls1("fake dtls 1", 0);
   FakeDtlsTransport fake_dtls2("fake dtls 2", 0);
   SctpFakeDataReceiver recv1;
   SctpFakeDataReceiver recv2;
 
-  // Construct transport1 with the "black hole" transport.
+  // Construct transport1 with the "black hole" channel.
   std::unique_ptr<SctpTransport> transport1(
       CreateTransport(&black_hole, &recv1));
   std::unique_ptr<SctpTransport> transport2(
@@ -259,10 +261,10 @@ TEST_F(SctpTransportTest, SwitchDtlsTransport) {
   transport1->Start(kTransport1Port, kTransport2Port);
   transport2->Start(kTransport2Port, kTransport1Port);
 
-  // Switch transport1_ to the normal fake_dtls1_ transport.
-  transport1->SetDtlsTransport(&fake_dtls1);
+  // Switch transport1_ to the normal fake_dtls1_ channel.
+  transport1->SetTransportChannel(&fake_dtls1);
 
-  // Connect the two fake DTLS transports.
+  // Connect the two fake DTLS channels.
   bool asymmetric = false;
   fake_dtls1.SetDestination(&fake_dtls2, asymmetric);
 
@@ -272,10 +274,6 @@ TEST_F(SctpTransportTest, SwitchDtlsTransport) {
   ASSERT_TRUE(SendData(transport2.get(), 1, "bar", &result));
   EXPECT_TRUE_WAIT(ReceivedData(&recv2, 1, "foo"), kDefaultTimeout);
   EXPECT_TRUE_WAIT(ReceivedData(&recv1, 1, "bar"), kDefaultTimeout);
-
-  // Setting a null DtlsTransport should work. This could happen when an SCTP
-  // data section is rejected.
-  transport1->SetDtlsTransport(nullptr);
 }
 
 // Calling Start twice shouldn't do anything bad, if with the same parameters.
@@ -319,7 +317,7 @@ TEST_F(SctpTransportTest, NegativeOnePortTreatedAsDefault) {
   transport1->Start(kSctpDefaultPort, kSctpDefaultPort);
   transport2->Start(-1, -1);
 
-  // Connect the two fake DTLS transports.
+  // Connect the two fake DTLS channels.
   bool asymmetric = false;
   fake_dtls1.SetDestination(&fake_dtls2, asymmetric);
 
@@ -349,16 +347,19 @@ TEST_F(SctpTransportTest, ResetStreamWithAlreadyResetStreamFails) {
 }
 
 // Test that SignalReadyToSendData is fired after Start has been called and the
-// DTLS transport is writable.
+// DTLS channel is writable.
 TEST_F(SctpTransportTest, SignalReadyToSendDataAfterDtlsWritable) {
   FakeDtlsTransport fake_dtls("fake dtls", 0);
   SctpFakeDataReceiver recv;
   std::unique_ptr<SctpTransport> transport(CreateTransport(&fake_dtls, &recv));
-  SctpTransportObserver observer(transport.get());
+
+  SignalReadyToSendObserver signal_observer;
+  transport->SignalReadyToSendData.connect(
+      &signal_observer, &SignalReadyToSendObserver::OnSignaled);
 
   transport->Start(kSctpDefaultPort, kSctpDefaultPort);
   fake_dtls.SetWritable(true);
-  EXPECT_TRUE_WAIT(observer.ReadyToSend(), kDefaultTimeout);
+  EXPECT_TRUE_WAIT(signal_observer.IsSignaled(), kDefaultTimeout);
 }
 
 // Test that after an SCTP socket's buffer is filled, SignalReadyToSendData
@@ -471,8 +472,10 @@ TEST_F(SctpTransportTest, SendDataHighPorts) {
 
 TEST_F(SctpTransportTest, ClosesRemoteStream) {
   SetupConnectedTransportsWithTwoStreams();
-  SctpTransportObserver transport1_observer(transport1());
-  SctpTransportObserver transport2_observer(transport2());
+  SignalTransportClosedObserver transport1_sig_receiver,
+      transport2_sig_receiver;
+  transport1_sig_receiver.BindSelf(transport1());
+  transport2_sig_receiver.BindSelf(transport2());
 
   SendDataResult result;
   ASSERT_TRUE(SendData(transport1(), 1, "hello?", &result));
@@ -483,16 +486,18 @@ TEST_F(SctpTransportTest, ClosesRemoteStream) {
   EXPECT_TRUE_WAIT(ReceivedData(receiver1(), 2, "hi transport1"),
                    kDefaultTimeout);
 
-  // Close stream 1 on transport 1. Transport 2 should notify us.
+  // Close transport 1.  Transport 2 should notify us.
   transport1()->ResetStream(1);
-  EXPECT_TRUE_WAIT(transport2_observer.WasStreamClosed(1), kDefaultTimeout);
+  EXPECT_TRUE_WAIT(transport2_sig_receiver.WasStreamClosed(1), kDefaultTimeout);
 }
 
 TEST_F(SctpTransportTest, ClosesTwoRemoteStreams) {
   SetupConnectedTransportsWithTwoStreams();
   AddStream(3);
-  SctpTransportObserver transport1_observer(transport1());
-  SctpTransportObserver transport2_observer(transport2());
+  SignalTransportClosedObserver transport1_sig_receiver,
+      transport2_sig_receiver;
+  transport1_sig_receiver.BindSelf(transport1());
+  transport2_sig_receiver.BindSelf(transport2());
 
   SendDataResult result;
   ASSERT_TRUE(SendData(transport1(), 1, "hello?", &result));
@@ -506,16 +511,18 @@ TEST_F(SctpTransportTest, ClosesTwoRemoteStreams) {
   // Close two streams on one side.
   transport2()->ResetStream(2);
   transport2()->ResetStream(3);
-  EXPECT_TRUE_WAIT(transport2_observer.WasStreamClosed(2), kDefaultTimeout);
-  EXPECT_TRUE_WAIT(transport2_observer.WasStreamClosed(3), kDefaultTimeout);
+  EXPECT_TRUE_WAIT(transport1_sig_receiver.WasStreamClosed(2), kDefaultTimeout);
+  EXPECT_TRUE_WAIT(transport1_sig_receiver.WasStreamClosed(3), kDefaultTimeout);
 }
 
 TEST_F(SctpTransportTest, ClosesStreamsOnBothSides) {
   SetupConnectedTransportsWithTwoStreams();
   AddStream(3);
   AddStream(4);
-  SctpTransportObserver transport1_observer(transport1());
-  SctpTransportObserver transport2_observer(transport2());
+  SignalTransportClosedObserver transport1_sig_receiver,
+      transport2_sig_receiver;
+  transport1_sig_receiver.BindSelf(transport1());
+  transport2_sig_receiver.BindSelf(transport2());
 
   SendDataResult result;
   ASSERT_TRUE(SendData(transport1(), 1, "hello?", &result));
@@ -534,10 +541,10 @@ TEST_F(SctpTransportTest, ClosesStreamsOnBothSides) {
   transport2()->ResetStream(2);
   transport2()->ResetStream(3);
   transport2()->ResetStream(4);
-  EXPECT_TRUE_WAIT(transport2_observer.WasStreamClosed(1), kDefaultTimeout);
-  EXPECT_TRUE_WAIT(transport1_observer.WasStreamClosed(2), kDefaultTimeout);
-  EXPECT_TRUE_WAIT(transport1_observer.WasStreamClosed(3), kDefaultTimeout);
-  EXPECT_TRUE_WAIT(transport1_observer.WasStreamClosed(4), kDefaultTimeout);
+  EXPECT_TRUE_WAIT(transport2_sig_receiver.WasStreamClosed(1), kDefaultTimeout);
+  EXPECT_TRUE_WAIT(transport1_sig_receiver.WasStreamClosed(2), kDefaultTimeout);
+  EXPECT_TRUE_WAIT(transport1_sig_receiver.WasStreamClosed(3), kDefaultTimeout);
+  EXPECT_TRUE_WAIT(transport1_sig_receiver.WasStreamClosed(4), kDefaultTimeout);
 }
 
 TEST_F(SctpTransportTest, RefusesHighNumberedTransports) {
@@ -546,18 +553,20 @@ TEST_F(SctpTransportTest, RefusesHighNumberedTransports) {
   EXPECT_FALSE(AddStream(kMaxSctpSid + 1));
 }
 
-TEST_F(SctpTransportTest, ReusesAStream) {
+// Flaky, see webrtc:4453.
+TEST_F(SctpTransportTest, DISABLED_ReusesAStream) {
   // Shut down transport 1, then open it up again for reuse.
   SetupConnectedTransportsWithTwoStreams();
   SendDataResult result;
-  SctpTransportObserver transport2_observer(transport2());
+  SignalTransportClosedObserver transport2_sig_receiver;
+  transport2_sig_receiver.BindSelf(transport2());
 
   ASSERT_TRUE(SendData(transport1(), 1, "hello?", &result));
   EXPECT_EQ(SDR_SUCCESS, result);
   EXPECT_TRUE_WAIT(ReceivedData(receiver2(), 1, "hello?"), kDefaultTimeout);
 
   transport1()->ResetStream(1);
-  EXPECT_TRUE_WAIT(transport2_observer.WasStreamClosed(1), kDefaultTimeout);
+  EXPECT_TRUE_WAIT(transport2_sig_receiver.WasStreamClosed(1), kDefaultTimeout);
   // Transport 1 is gone now.
 
   // Create a new transport 1.
@@ -566,7 +575,8 @@ TEST_F(SctpTransportTest, ReusesAStream) {
   EXPECT_EQ(SDR_SUCCESS, result);
   EXPECT_TRUE_WAIT(ReceivedData(receiver2(), 1, "hi?"), kDefaultTimeout);
   transport1()->ResetStream(1);
-  EXPECT_EQ_WAIT(2, transport2_observer.StreamCloseCount(1), kDefaultTimeout);
+  EXPECT_TRUE_WAIT(transport2_sig_receiver.StreamCloseCount(1) == 2,
+                   kDefaultTimeout);
 }
 
 }  // namespace cricket

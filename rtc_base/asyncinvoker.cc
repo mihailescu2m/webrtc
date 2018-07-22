@@ -67,10 +67,6 @@ void AsyncInvoker::Flush(Thread* thread, uint32_t id /*= MQID_ANY*/) {
   }
 }
 
-void AsyncInvoker::Clear() {
-  MessageQueueManager::Clear(this);
-}
-
 void AsyncInvoker::DoInvoke(const Location& posted_from,
                             Thread* thread,
                             std::unique_ptr<AsyncClosure> closure,
@@ -106,7 +102,8 @@ GuardedAsyncInvoker::GuardedAsyncInvoker() : thread_(Thread::Current()) {
                                         &GuardedAsyncInvoker::ThreadDestroyed);
 }
 
-GuardedAsyncInvoker::~GuardedAsyncInvoker() {}
+GuardedAsyncInvoker::~GuardedAsyncInvoker() {
+}
 
 bool GuardedAsyncInvoker::Flush(uint32_t id) {
   CritScope cs(&crit_);

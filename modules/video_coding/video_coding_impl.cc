@@ -16,6 +16,7 @@
 #include "common_types.h"  // NOLINT(build/include)
 #include "common_video/include/video_bitrate_allocator.h"
 #include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "modules/video_coding/codecs/vp8/temporal_layers.h"
 #include "modules/video_coding/encoded_frame.h"
 #include "modules/video_coding/include/video_codec_initializer.h"
 #include "modules/video_coding/include/video_codec_interface.h"
@@ -27,10 +28,6 @@
 #include "system_wrappers/include/clock.h"
 
 namespace webrtc {
-EventWrapper* EventFactoryImpl::CreateEvent() {
-  return EventWrapper::Create();
-}
-
 namespace vcm {
 
 int64_t VCMProcessTimer::Period() const {
@@ -103,30 +100,45 @@ class VideoCodingModuleImpl : public VideoCodingModule {
     return receiver_time;
   }
 
-  void Process() override { receiver_.Process(); }
+  void Process() override {
+    receiver_.Process();
+  }
 
   int32_t RegisterSendCodec(const VideoCodec* sendCodec,
                             uint32_t numberOfCores,
                             uint32_t maxPayloadSize) override {
-    if (sendCodec != nullptr && ((sendCodec->codecType == kVideoCodecVP8) ||
-                                 (sendCodec->codecType == kVideoCodecH264))) {
-      // Set up a rate allocator and temporal layers factory for this codec
+    if (sendCodec != nullptr && sendCodec->codecType == kVideoCodecVP8) {
+      // Set up a rate allocator and temporal layers factory for this vp8
       // instance. The codec impl will have a raw pointer to the TL factory,
       // and will call it when initializing. Since this can happen
       // asynchronously keep the instance alive until destruction or until a
       // new send codec is registered.
-      VideoCodec codec = *sendCodec;
-      rate_allocator_ = VideoCodecInitializer::CreateBitrateAllocator(codec);
-      return sender_.RegisterSendCodec(&codec, numberOfCores, maxPayloadSize);
+      VideoCodec vp8_codec = *sendCodec;
+      std::unique_ptr<TemporalLayersFactory> tl_factory(
+          new TemporalLayersFactory());
+      vp8_codec.VP8()->tl_factory = tl_factory.get();
+      rate_allocator_ = VideoCodecInitializer::CreateBitrateAllocator(
+          vp8_codec, std::move(tl_factory));
+      return sender_.RegisterSendCodec(&vp8_codec, numberOfCores,
+                                       maxPayloadSize);
     }
     return sender_.RegisterSendCodec(sendCodec, numberOfCores, maxPayloadSize);
   }
 
   int32_t RegisterExternalEncoder(VideoEncoder* externalEncoder,
-                                  uint8_t /* payloadType */,
+                                  uint8_t payloadType,
                                   bool internalSource) override {
-    sender_.RegisterExternalEncoder(externalEncoder, internalSource);
+    sender_.RegisterExternalEncoder(externalEncoder, payloadType,
+                                    internalSource);
     return 0;
+  }
+
+  int Bitrate(unsigned int* bitrate) const override {
+    return sender_.Bitrate(bitrate);
+  }
+
+  int FrameRate(unsigned int* framerate) const override {
+    return sender_.FrameRate(framerate);
   }
 
   int32_t SetChannelParameters(uint32_t target_bitrate,  // bits/s.
@@ -134,6 +146,11 @@ class VideoCodingModuleImpl : public VideoCodingModule {
                                int64_t rtt) override {
     return sender_.SetChannelParameters(target_bitrate, lossRate, rtt,
                                         rate_allocator_.get(), nullptr);
+  }
+
+  int32_t RegisterProtectionCallback(
+      VCMProtectionCallback* protection) override {
+    return sender_.RegisterProtectionCallback(protection);
   }
 
   int32_t SetVideoProtection(VCMVideoProtection videoProtection,
@@ -173,6 +190,11 @@ class VideoCodingModuleImpl : public VideoCodingModule {
     return receiver_.RegisterReceiveCallback(receiveCallback);
   }
 
+  int32_t RegisterReceiveStatisticsCallback(
+      VCMReceiveStatisticsCallback* receiveStats) override {
+    return receiver_.RegisterReceiveStatisticsCallback(receiveStats);
+  }
+
   int32_t RegisterFrameTypeCallback(
       VCMFrameTypeCallback* frameTypeCallback) override {
     return receiver_.RegisterFrameTypeCallback(frameTypeCallback);
@@ -194,6 +216,16 @@ class VideoCodingModuleImpl : public VideoCodingModule {
     return receiver_.IncomingPacket(incomingPayload, payloadLength, rtpInfo);
   }
 
+  int32_t SetMinimumPlayoutDelay(uint32_t minPlayoutDelayMs) override {
+    return receiver_.SetMinimumPlayoutDelay(minPlayoutDelayMs);
+  }
+
+  int32_t SetRenderDelay(uint32_t timeMS) override {
+    return receiver_.SetRenderDelay(timeMS);
+  }
+
+  int32_t Delay() const override { return receiver_.Delay(); }
+
   int SetReceiverRobustnessMode(ReceiverRobustness robustnessMode,
                                 VCMDecodeErrorMode errorMode) override {
     return receiver_.SetReceiverRobustnessMode(robustnessMode, errorMode);
@@ -206,10 +238,24 @@ class VideoCodingModuleImpl : public VideoCodingModule {
                                      max_incomplete_time_ms);
   }
 
+  void SetDecodeErrorMode(VCMDecodeErrorMode decode_error_mode) override {
+    return receiver_.SetDecodeErrorMode(decode_error_mode);
+  }
+
+  int SetMinReceiverDelay(int desired_delay_ms) override {
+    return receiver_.SetMinReceiverDelay(desired_delay_ms);
+  }
+
+  int32_t SetReceiveChannelParameters(int64_t rtt) override {
+    return receiver_.SetReceiveChannelParameters(rtt);
+  }
+
   void RegisterPostEncodeImageCallback(
       EncodedImageCallback* observer) override {
     post_encode_callback_.Register(observer);
   }
+
+  void TriggerDecoderShutdown() override { receiver_.TriggerDecoderShutdown(); }
 
  private:
   rtc::ThreadChecker construction_thread_;

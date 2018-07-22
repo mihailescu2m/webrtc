@@ -17,7 +17,6 @@ namespace rtc {
 VideoSourceBase::VideoSourceBase() {
   thread_checker_.DetachFromThread();
 }
-VideoSourceBase::~VideoSourceBase() = default;
 
 void VideoSourceBase::AddOrUpdateSink(
     VideoSinkInterface<webrtc::VideoFrame>* sink,

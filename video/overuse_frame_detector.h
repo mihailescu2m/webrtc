@@ -14,7 +14,7 @@
 #include <list>
 #include <memory>
 
-#include "absl/types/optional.h"
+#include "api/optional.h"
 #include "modules/video_coding/utility/quality_scaler.h"
 #include "rtc_base/constructormagic.h"
 #include "rtc_base/numerics/exp_filter.h"
@@ -24,6 +24,7 @@
 
 namespace webrtc {
 
+class EncodedFrameObserver;
 class VideoFrame;
 
 struct CpuOveruseOptions {
@@ -34,14 +35,12 @@ struct CpuOveruseOptions {
   // General settings.
   int frame_timeout_interval_ms;  // The maximum allowed interval between two
                                   // frames before resetting estimations.
-  int min_frame_samples;          // The minimum number of frames required.
+  int min_frame_samples;  // The minimum number of frames required.
   int min_process_count;  // The number of initial process times required before
                           // triggering an overuse/underuse.
   int high_threshold_consecutive_count;  // The number of consecutive checks
                                          // above the high threshold before
                                          // triggering an overuse.
-  // New estimator enabled if this is set non-zero.
-  int filter_time_ms;  // Time constant for averaging
 };
 
 struct CpuOveruseMetrics {
@@ -65,12 +64,14 @@ class CpuOveruseMetricsObserver {
 // check for overuse.
 class OveruseFrameDetector {
  public:
-  explicit OveruseFrameDetector(CpuOveruseMetricsObserver* metrics_observer);
+  OveruseFrameDetector(const CpuOveruseOptions& options,
+                       AdaptationObserverInterface* overuse_observer,
+                       EncodedFrameObserver* encoder_timing_,
+                       CpuOveruseMetricsObserver* metrics_observer);
   virtual ~OveruseFrameDetector();
 
   // Start to periodically check for overuse.
-  void StartCheckForOveruse(const CpuOveruseOptions& options,
-                            AdaptationObserverInterface* overuse_observer);
+  void StartCheckForOveruse();
 
   // StopCheckForOveruse must be called before destruction if
   // StartCheckForOveruse has been called.
@@ -87,41 +88,26 @@ class OveruseFrameDetector {
   void FrameCaptured(const VideoFrame& frame, int64_t time_when_first_seen_us);
 
   // Called for each sent frame.
-  void FrameSent(uint32_t timestamp,
-                 int64_t time_sent_in_us,
-                 int64_t capture_time_us,
-                 absl::optional<int> encode_duration_us);
-
-  // Interface for cpu load estimation. Intended for internal use only.
-  class ProcessingUsage {
-   public:
-    virtual void Reset() = 0;
-    virtual void SetMaxSampleDiffMs(float diff_ms) = 0;
-    virtual void FrameCaptured(const VideoFrame& frame,
-                               int64_t time_when_first_seen_us,
-                               int64_t last_capture_time_us) = 0;
-    // Returns encode_time in us, if there's a new measurement.
-    virtual absl::optional<int> FrameSent(
-        // These two argument used by old estimator.
-        uint32_t timestamp,
-        int64_t time_sent_in_us,
-        // And these two by the new estimator.
-        int64_t capture_time_us,
-        absl::optional<int> encode_duration_us) = 0;
-
-    virtual int Value() = 0;
-    virtual ~ProcessingUsage() = default;
-  };
+  void FrameSent(uint32_t timestamp, int64_t time_sent_in_us);
 
  protected:
-  // Protected for test purposes.
-  void CheckForOveruse(AdaptationObserverInterface* overuse_observer);
-  void SetOptions(const CpuOveruseOptions& options);
-
-  CpuOveruseOptions options_;
+  void CheckForOveruse();  // Protected for test purposes.
 
  private:
+  class OverdoseInjector;
+  class SendProcessingUsage;
   class CheckOveruseTask;
+  struct FrameTiming {
+    FrameTiming(int64_t capture_time_us, uint32_t timestamp, int64_t now)
+        : capture_time_us(capture_time_us),
+          timestamp(timestamp),
+          capture_us(now),
+          last_send_us(-1) {}
+    int64_t capture_time_us;
+    uint32_t timestamp;
+    int64_t capture_us;
+    int64_t last_send_us;
+  };
 
   void EncodedFrameTimeMeasured(int encode_duration_ms);
   bool IsOverusing(const CpuOveruseMetrics& metrics);
@@ -132,20 +118,27 @@ class OveruseFrameDetector {
 
   void ResetAll(int num_pixels);
 
-  static std::unique_ptr<ProcessingUsage> CreateProcessingUsage(
+  static std::unique_ptr<SendProcessingUsage> CreateSendProcessingUsage(
       const CpuOveruseOptions& options);
 
   rtc::SequencedTaskChecker task_checker_;
   // Owned by the task queue from where StartCheckForOveruse is called.
   CheckOveruseTask* check_overuse_task_;
 
+  const CpuOveruseOptions options_;
+
+  // Observer getting overuse reports.
+  AdaptationObserverInterface* const observer_;
+  EncodedFrameObserver* const encoder_timing_;
+
   // Stats metrics.
   CpuOveruseMetricsObserver* const metrics_observer_;
-  absl::optional<CpuOveruseMetrics> metrics_ RTC_GUARDED_BY(task_checker_);
+  rtc::Optional<CpuOveruseMetrics> metrics_ RTC_GUARDED_BY(task_checker_);
 
   int64_t num_process_times_ RTC_GUARDED_BY(task_checker_);
 
   int64_t last_capture_time_us_ RTC_GUARDED_BY(task_checker_);
+  int64_t last_processed_capture_time_us_ RTC_GUARDED_BY(task_checker_);
 
   // Number of pixels of last captured frame.
   int num_pixels_ RTC_GUARDED_BY(task_checker_);
@@ -157,7 +150,11 @@ class OveruseFrameDetector {
   bool in_quick_rampup_ RTC_GUARDED_BY(task_checker_);
   int current_rampup_delay_ms_ RTC_GUARDED_BY(task_checker_);
 
-  std::unique_ptr<ProcessingUsage> usage_ RTC_PT_GUARDED_BY(task_checker_);
+  // TODO(asapersson): Can these be regular members (avoid separate heap
+  // allocs)?
+  const std::unique_ptr<SendProcessingUsage> usage_
+      RTC_GUARDED_BY(task_checker_);
+  std::list<FrameTiming> frame_timing_ RTC_GUARDED_BY(task_checker_);
 
   RTC_DISALLOW_COPY_AND_ASSIGN(OveruseFrameDetector);
 };

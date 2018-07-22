@@ -23,9 +23,9 @@ public class VideoDecoderFallback extends WrappedNativeVideoDecoder {
   }
 
   @Override
-  public long createNativeVideoDecoder() {
-    return nativeCreateDecoder(fallback, primary);
+  long createNativeDecoder() {
+    return createNativeDecoder(fallback, primary);
   }
 
-  private static native long nativeCreateDecoder(VideoDecoder fallback, VideoDecoder primary);
+  private static native long createNativeDecoder(VideoDecoder fallback, VideoDecoder primary);
 }

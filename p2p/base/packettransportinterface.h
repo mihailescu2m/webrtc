@@ -21,4 +21,4 @@ namespace rtc {
 typedef PacketTransportInternal PacketTransportInterface;
 }
 
-#endif  // P2P_BASE_PACKETTRANSPORTINTERFACE_H_
+#endif

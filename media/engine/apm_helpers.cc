@@ -13,6 +13,7 @@
 #include "modules/audio_device/include/audio_device.h"
 #include "modules/audio_processing/include/audio_processing.h"
 #include "rtc_base/logging.h"
+#include "voice_engine/transmit_mixer.h"
 
 namespace webrtc {
 namespace apm_helpers {
@@ -31,8 +32,7 @@ void Init(AudioProcessing* apm) {
   GainControl* gc = apm->gain_control();
   if (gc->set_analog_level_limits(kMinVolumeLevel, kMaxVolumeLevel) != 0) {
     RTC_DLOG(LS_ERROR) << "Failed to set analog level limits with minimum: "
-                       << kMinVolumeLevel
-                       << " and maximum: " << kMaxVolumeLevel;
+        << kMinVolumeLevel << " and maximum: " << kMaxVolumeLevel;
   }
 }
 
@@ -45,7 +45,8 @@ AgcConfig GetAgcConfig(AudioProcessing* apm) {
   return result;
 }
 
-void SetAgcConfig(AudioProcessing* apm, const AgcConfig& config) {
+void SetAgcConfig(AudioProcessing* apm,
+                  const AgcConfig& config) {
   RTC_DCHECK(apm);
   GainControl* gc = apm->gain_control();
   if (gc->set_target_level_dbfs(config.targetLeveldBOv) != 0) {
@@ -62,8 +63,11 @@ void SetAgcConfig(AudioProcessing* apm, const AgcConfig& config) {
   }
 }
 
-void SetAgcStatus(AudioProcessing* apm, bool enable) {
+void SetAgcStatus(AudioProcessing* apm,
+                  AudioDeviceModule* adm,
+                  bool enable) {
   RTC_DCHECK(apm);
+  RTC_DCHECK(adm);
 #if defined(WEBRTC_IOS) || defined(WEBRTC_ANDROID)
   GainControl::Mode agc_mode = GainControl::kFixedDigital;
 #else
@@ -78,10 +82,17 @@ void SetAgcStatus(AudioProcessing* apm, bool enable) {
     RTC_LOG(LS_ERROR) << "Failed to enable/disable AGC: " << enable;
     return;
   }
+  // Set AGC state in the ADM when adaptive AGC mode has been selected.
+  if (adm->SetAGC(enable && agc_mode == GainControl::kAdaptiveAnalog) != 0) {
+    RTC_LOG(LS_ERROR) << "Failed to set AGC mode in ADM: " << enable;
+    return;
+  }
   RTC_LOG(LS_INFO) << "AGC set to " << enable << " with mode " << agc_mode;
 }
 
-void SetEcStatus(AudioProcessing* apm, bool enable, EcModes mode) {
+void SetEcStatus(AudioProcessing* apm,
+                 bool enable,
+                 EcModes mode) {
   RTC_DCHECK(apm);
   RTC_DCHECK(mode == kEcConference || mode == kEcAecm) << "mode: " << mode;
   EchoCancellation* ec = apm->echo_cancellation();
@@ -96,7 +107,8 @@ void SetEcStatus(AudioProcessing* apm, bool enable, EcModes mode) {
       RTC_LOG(LS_ERROR) << "Failed to enable/disable AEC: " << enable;
       return;
     }
-    if (ec->set_suppression_level(EchoCancellation::kHighSuppression) != 0) {
+    if (ec->set_suppression_level(EchoCancellation::kHighSuppression)
+        != 0) {
       RTC_LOG(LS_ERROR) << "Failed to set high AEC aggressiveness.";
       return;
     }
@@ -151,6 +163,17 @@ void SetNsStatus(AudioProcessing* apm, bool enable) {
 
 void SetTypingDetectionStatus(AudioProcessing* apm, bool enable) {
   RTC_DCHECK(apm);
+#if WEBRTC_VOICE_ENGINE_TYPING_DETECTION
+  // Typing detection takes place in TransmitMixer::PrepareDemux() and
+  // TransmitMixer::TypingDetection(). The typing detection algorithm takes as
+  // input two booleans:
+  //   1. A signal whether a key was pressed during the audio frame.
+  //   2. Whether VAD is active or not.
+  // TransmitMixer will not even call the detector if APM has set kVadUnknown in
+  // the audio frame after near end processing, so enabling/disabling VAD is
+  // sufficient for turning typing detection on/off.
+  // TODO(solenberg): Rather than relying on a side effect, consider forcing the
+  //                  feature on/off in TransmitMixer.
   VoiceDetection* vd = apm->voice_detection();
   if (vd->Enable(enable)) {
     RTC_LOG(LS_ERROR) << "Failed to enable/disable VAD: " << enable;
@@ -161,6 +184,7 @@ void SetTypingDetectionStatus(AudioProcessing* apm, bool enable) {
     return;
   }
   RTC_LOG(LS_INFO) << "VAD set to " << enable << " for typing detection.";
+#endif
 }
 }  // namespace apm_helpers
 }  // namespace webrtc

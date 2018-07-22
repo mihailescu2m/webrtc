@@ -16,7 +16,6 @@ import java.util.List;
 // Base interface for all VideoCapturers to implement.
 public interface VideoCapturer {
   // Interface used for providing callbacks to an observer.
-  @Deprecated
   public interface CapturerObserver {
     // Notify if the camera have been started successfully or not.
     // Called on a Java thread owned by VideoCapturer.
@@ -24,14 +23,16 @@ public interface VideoCapturer {
     void onCapturerStopped();
 
     // Delivers a captured frame. Called on a Java thread owned by VideoCapturer.
-    void onFrameCaptured(VideoFrame frame);
-  }
+    void onByteBufferFrameCaptured(
+        byte[] data, int width, int height, int rotation, long timeStamp);
 
-  /** Deprecated, implementations should be update to implement the version below. */
-  @Deprecated
-  default void initialize(SurfaceTextureHelper surfaceTextureHelper, Context applicationContext,
-      CapturerObserver capturerObserver) {
-    throw new UnsupportedOperationException("Not implemented.");
+    // Delivers a captured frame in a texture with id |oesTextureId|. Called on a Java thread
+    // owned by VideoCapturer.
+    void onTextureFrameCaptured(int width, int height, int oesTextureId, float[] transformMatrix,
+        int rotation, long timestamp);
+
+    // Delivers a captured frame. Called on a Java thread owned by VideoCapturer.
+    void onFrameCaptured(VideoFrame frame);
   }
 
   /**
@@ -39,22 +40,15 @@ public interface VideoCapturer {
    * capture observer. It will be called only once and before any startCapture() request. The
    * camera thread is guaranteed to be valid until dispose() is called. If the VideoCapturer wants
    * to deliver texture frames, it should do this by rendering on the SurfaceTexture in
-   * {@code surfaceTextureHelper}, register itself as a listener, and forward the frames to
-   * CapturerObserver.onFrameCaptured(). The caller still has ownership of {@code
-   * surfaceTextureHelper} and is responsible for making sure surfaceTextureHelper.dispose() is
-   * called. This also means that the caller can reuse the SurfaceTextureHelper to initialize a new
-   * VideoCapturer once the previous VideoCapturer has been disposed.
+   * |surfaceTextureHelper|, register itself as a listener, and forward the texture frames to
+   * CapturerObserver.onTextureFrameCaptured().
    */
-  // Our version of clang format doesn't understand default and messes up.
-  // clang-format off
-  default void initialize(SurfaceTextureHelper surfaceTextureHelper, Context applicationContext,
-      org.webrtc.CapturerObserver capturerObserver) {
-    initialize(surfaceTextureHelper, applicationContext, (CapturerObserver) capturerObserver);
-  }
+  void initialize(SurfaceTextureHelper surfaceTextureHelper, Context applicationContext,
+      CapturerObserver capturerObserver);
 
   /**
-   * Start capturing frames in a format that is as close as possible to {@code width x height} and
-   * {@code framerate}.
+   * Start capturing frames in a format that is as close as possible to |width| x |height| and
+   * |framerate|.
    */
   void startCapture(int width, int height, int framerate);
 

@@ -10,23 +10,23 @@
 
 #include "system_wrappers/include/clock.h"
 
-#if defined(WEBRTC_WIN)
+#if defined(_WIN32)
 
 // Windows needs to be included before mmsystem.h
 #include "rtc_base/win32.h"
 
-#include <mmsystem.h>
+#include <MMSystem.h>
 
-#elif defined(WEBRTC_POSIX)
+#elif ((defined WEBRTC_LINUX) || (defined WEBRTC_MAC))
 
 #include <sys/time.h>
 #include <time.h>
 
-#endif  // defined(WEBRTC_POSIX)
+#endif
 
 #include "rtc_base/criticalsection.h"
-#include "rtc_base/synchronization/rw_lock_wrapper.h"
 #include "rtc_base/timeutils.h"
+#include "system_wrappers/include/rw_lock_wrapper.h"
 
 namespace webrtc {
 
@@ -79,7 +79,7 @@ class RealTimeClock : public Clock {
   }
 };
 
-#if defined(WEBRTC_WIN)
+#if defined(_WIN32)
 // TODO(pbos): Consider modifying the implementation to synchronize itself
 // against system time (update ref_point_, make it non-const) periodically to
 // prevent clock drift.
@@ -90,7 +90,7 @@ class WindowsRealTimeClock : public RealTimeClock {
         num_timer_wraps_(0),
         ref_point_(GetSystemReferencePoint()) {}
 
-  ~WindowsRealTimeClock() override {}
+  virtual ~WindowsRealTimeClock() {}
 
  protected:
   struct ReferencePoint {
@@ -181,7 +181,7 @@ class WindowsRealTimeClock : public RealTimeClock {
   const ReferencePoint ref_point_;
 };
 
-#elif defined(WEBRTC_POSIX)
+#elif ((defined WEBRTC_LINUX) || (defined WEBRTC_MAC))
 class UnixRealTimeClock : public RealTimeClock {
  public:
   UnixRealTimeClock() {}
@@ -198,14 +198,13 @@ class UnixRealTimeClock : public RealTimeClock {
     return tv;
   }
 };
-#endif  // defined(WEBRTC_POSIX)
+#endif
 
-#if defined(WEBRTC_WIN)
+#if defined(_WIN32)
 static WindowsRealTimeClock* volatile g_shared_clock = nullptr;
-#endif  // defined(WEBRTC_WIN)
-
+#endif
 Clock* Clock::GetRealTimeClock() {
-#if defined(WEBRTC_WIN)
+#if defined(_WIN32)
   // This read relies on volatile read being atomic-load-acquire. This is
   // true in MSVC since at least 2005:
   // "A read of a volatile object (volatile read) has Acquire semantics"
@@ -220,12 +219,12 @@ Clock* Clock::GetRealTimeClock() {
     delete clock;
   }
   return g_shared_clock;
-#elif defined(WEBRTC_POSIX)
+#elif defined(WEBRTC_LINUX) || defined(WEBRTC_MAC)
   static UnixRealTimeClock clock;
   return &clock;
-#else   // defined(WEBRTC_POSIX)
-  return nullptr;
-#endif  // !defined(WEBRTC_WIN) || defined(WEBRTC_POSIX)
+#else
+  return NULL;
+#endif
 }
 
 SimulatedClock::SimulatedClock(int64_t initial_time_us)

@@ -12,7 +12,9 @@
 
 #include <assert.h>
 #include <string.h>
-#ifndef WIN32
+#ifdef WIN32
+#include <winsock2.h>
+#else
 #include <netinet/in.h>
 #endif
 
@@ -44,7 +46,8 @@ bool RtpFileSource::ValidPcap(const std::string& file_name) {
   return !!temp_file;
 }
 
-RtpFileSource::~RtpFileSource() {}
+RtpFileSource::~RtpFileSource() {
+}
 
 bool RtpFileSource::RegisterRtpHeaderExtension(RTPExtensionType type,
                                                uint8_t id) {
@@ -81,7 +84,8 @@ std::unique_ptr<Packet> RtpFileSource::NextPacket() {
 }
 
 RtpFileSource::RtpFileSource()
-    : PacketSource(), parser_(RtpHeaderParser::Create()) {}
+    : PacketSource(),
+      parser_(RtpHeaderParser::Create()) {}
 
 bool RtpFileSource::OpenFile(const std::string& file_name) {
   rtp_reader_.reset(RtpFileReader::Create(RtpFileReader::kRtpDump, file_name));

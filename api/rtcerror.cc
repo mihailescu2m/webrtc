@@ -93,10 +93,9 @@ void RTCError::set_message(std::string&& message) {
   }
 }
 
-// TODO(jonasolsson): Change to use absl::string_view when it's available.
-std::string ToString(RTCErrorType error) {
+std::ostream& operator<<(std::ostream& stream, RTCErrorType error) {
   int index = static_cast<int>(error);
-  return std::string(kRTCErrorTypeNames[index]);
+  return stream << kRTCErrorTypeNames[index];
 }
 
 }  // namespace webrtc

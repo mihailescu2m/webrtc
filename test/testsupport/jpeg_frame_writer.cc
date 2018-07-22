@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 
+
 #include "common_types.h"  // NOLINT(build/include)
 #include "common_video/libyuv/include/webrtc_libyuv.h"
 #include "rtc_base/checks.h"
@@ -28,7 +29,7 @@ extern "C" {
 namespace webrtc {
 namespace test {
 
-JpegFrameWriter::JpegFrameWriter(const std::string& output_filename)
+JpegFrameWriter::JpegFrameWriter(const std::string &output_filename)
     : frame_written_(false),
       output_filename_(output_filename),
       output_file_(nullptr) {}

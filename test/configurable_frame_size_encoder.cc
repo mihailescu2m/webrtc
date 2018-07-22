@@ -42,8 +42,8 @@ int32_t ConfigurableFrameSizeEncoder::Encode(
     const VideoFrame& inputImage,
     const CodecSpecificInfo* codecSpecificInfo,
     const std::vector<FrameType>* frame_types) {
-  EncodedImage encodedImage(buffer_.get(), current_frame_size_,
-                            max_frame_size_);
+  EncodedImage encodedImage(
+      buffer_.get(), current_frame_size_, max_frame_size_);
   encodedImage._completeFrame = true;
   encodedImage._encodedHeight = inputImage.height();
   encodedImage._encodedWidth = inputImage.width();
@@ -74,8 +74,12 @@ int32_t ConfigurableFrameSizeEncoder::SetChannelParameters(uint32_t packet_loss,
 }
 
 int32_t ConfigurableFrameSizeEncoder::SetRateAllocation(
-    const VideoBitrateAllocation& allocation,
+    const BitrateAllocation& allocation,
     uint32_t framerate) {
+  return WEBRTC_VIDEO_CODEC_OK;
+}
+
+int32_t ConfigurableFrameSizeEncoder::SetPeriodicKeyFrames(bool enable) {
   return WEBRTC_VIDEO_CODEC_OK;
 }
 

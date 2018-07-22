@@ -27,7 +27,8 @@ const double kLowProbability = 0.01;
 
 VoiceActivityDetector::VoiceActivityDetector()
     : last_voice_probability_(kDefaultVoiceValue),
-      standalone_vad_(StandaloneVad::Create()) {}
+      standalone_vad_(StandaloneVad::Create()) {
+}
 
 VoiceActivityDetector::~VoiceActivityDetector() = default;
 

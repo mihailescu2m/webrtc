@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include "common_audio/real_fourier_ooura.h"
+#include "common_audio/real_fourier_openmax.h"
 #include "test/gtest.h"
 
 namespace webrtc {
@@ -60,14 +61,19 @@ class RealFourierTest : public ::testing::Test {
         real_buffer_(RealFourier::AllocRealBuffer(4)),
         cplx_buffer_(RealFourier::AllocCplxBuffer(3)) {}
 
-  ~RealFourierTest() {}
+  ~RealFourierTest() {
+  }
 
   T rf_;
   const RealFourier::fft_real_scoper real_buffer_;
   const RealFourier::fft_cplx_scoper cplx_buffer_;
 };
 
-using FftTypes = ::testing::Types<RealFourierOoura>;
+using FftTypes = ::testing::Types<
+#if defined(RTC_USE_OPENMAX_DL)
+    RealFourierOpenmax,
+#endif
+    RealFourierOoura>;
 TYPED_TEST_CASE(RealFourierTest, FftTypes);
 
 TYPED_TEST(RealFourierTest, SimpleForwardTransform) {
@@ -100,3 +106,4 @@ TYPED_TEST(RealFourierTest, SimpleBackwardTransform) {
 }
 
 }  // namespace webrtc
+

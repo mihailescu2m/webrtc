@@ -28,9 +28,9 @@ void SocketStream::Attach(AsyncSocket* socket) {
   socket_ = socket;
   if (socket_) {
     socket_->SignalConnectEvent.connect(this, &SocketStream::OnConnectEvent);
-    socket_->SignalReadEvent.connect(this, &SocketStream::OnReadEvent);
-    socket_->SignalWriteEvent.connect(this, &SocketStream::OnWriteEvent);
-    socket_->SignalCloseEvent.connect(this, &SocketStream::OnCloseEvent);
+    socket_->SignalReadEvent.connect(this,    &SocketStream::OnReadEvent);
+    socket_->SignalWriteEvent.connect(this,   &SocketStream::OnWriteEvent);
+    socket_->SignalCloseEvent.connect(this,   &SocketStream::OnCloseEvent);
   }
 }
 
@@ -59,10 +59,8 @@ StreamState SocketStream::GetState() const {
   }
 }
 
-StreamResult SocketStream::Read(void* buffer,
-                                size_t buffer_len,
-                                size_t* read,
-                                int* error) {
+StreamResult SocketStream::Read(void* buffer, size_t buffer_len,
+                                size_t* read, int* error) {
   RTC_DCHECK(socket_ != nullptr);
   int result = socket_->Recv(buffer, buffer_len, nullptr);
   if (result < 0) {
@@ -80,10 +78,8 @@ StreamResult SocketStream::Read(void* buffer,
   return SR_EOS;
 }
 
-StreamResult SocketStream::Write(const void* data,
-                                 size_t data_len,
-                                 size_t* written,
-                                 int* error) {
+StreamResult SocketStream::Write(const void* data, size_t data_len,
+                                 size_t* written, int* error) {
   RTC_DCHECK(socket_ != nullptr);
   int result = socket_->Send(data, data_len);
   if (result < 0) {
@@ -122,5 +118,6 @@ void SocketStream::OnCloseEvent(AsyncSocket* socket, int err) {
   RTC_DCHECK(socket == socket_);
   SignalEvent(this, SE_CLOSE, err);
 }
+
 
 }  // namespace rtc

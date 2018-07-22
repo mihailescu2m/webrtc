@@ -50,9 +50,12 @@ AudioDeviceBuffer::AudioDeviceBuffer()
       play_channels_(0),
       playing_(false),
       recording_(false),
+      current_mic_level_(0),
+      new_mic_level_(0),
       typing_status_(false),
       play_delay_ms_(0),
       rec_delay_ms_(0),
+      clock_drift_(0),
       num_stat_reports_(0),
       last_timer_task_time_(0),
       rec_stat_count_(0),
@@ -228,26 +231,39 @@ size_t AudioDeviceBuffer::PlayoutChannels() const {
   return play_channels_;
 }
 
+int32_t AudioDeviceBuffer::SetCurrentMicLevel(uint32_t level) {
+#if !defined(WEBRTC_WIN)
+  // Windows uses a dedicated thread for volume APIs.
+  RTC_DCHECK_RUN_ON(&recording_thread_checker_);
+#endif
+  current_mic_level_ = level;
+  return 0;
+}
+
 int32_t AudioDeviceBuffer::SetTypingStatus(bool typing_status) {
   RTC_DCHECK_RUN_ON(&recording_thread_checker_);
   typing_status_ = typing_status;
   return 0;
 }
 
-void AudioDeviceBuffer::NativeAudioPlayoutInterrupted() {
+void AudioDeviceBuffer::NativeAudioInterrupted() {
   RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
   playout_thread_checker_.DetachFromThread();
-}
-
-void AudioDeviceBuffer::NativeAudioRecordingInterrupted() {
-  RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
   recording_thread_checker_.DetachFromThread();
 }
 
-void AudioDeviceBuffer::SetVQEData(int play_delay_ms, int rec_delay_ms) {
+uint32_t AudioDeviceBuffer::NewMicLevel() const {
+  RTC_DCHECK_RUN_ON(&recording_thread_checker_);
+  return new_mic_level_;
+}
+
+void AudioDeviceBuffer::SetVQEData(int play_delay_ms,
+                                   int rec_delay_ms,
+                                   int clock_drift) {
   RTC_DCHECK_RUN_ON(&recording_thread_checker_);
   play_delay_ms_ = play_delay_ms;
   rec_delay_ms_ = rec_delay_ms;
+  clock_drift_ = clock_drift;
 }
 
 int32_t AudioDeviceBuffer::SetRecordedBuffer(const void* audio_buffer,
@@ -291,13 +307,15 @@ int32_t AudioDeviceBuffer::DeliverRecordedData() {
   }
   const size_t frames = rec_buffer_.size() / rec_channels_;
   const size_t bytes_per_frame = rec_channels_ * sizeof(int16_t);
-  uint32_t new_mic_level_dummy = 0;
+  uint32_t new_mic_level(0);
   uint32_t total_delay_ms = play_delay_ms_ + rec_delay_ms_;
   int32_t res = audio_transport_cb_->RecordedDataIsAvailable(
       rec_buffer_.data(), frames, bytes_per_frame, rec_channels_,
-      rec_sample_rate_, total_delay_ms, 0, 0, typing_status_,
-      new_mic_level_dummy);
-  if (res == -1) {
+      rec_sample_rate_, total_delay_ms, clock_drift_, current_mic_level_,
+      typing_status_, new_mic_level);
+  if (res != -1) {
+    new_mic_level_ = new_mic_level;
+  } else {
     RTC_LOG(LS_ERROR) << "RecordedDataIsAvailable() failed";
   }
   return 0;
@@ -355,17 +373,9 @@ int32_t AudioDeviceBuffer::GetPlayoutData(void* audio_buffer) {
   const double phase_increment =
       k2Pi * 440.0 / static_cast<double>(play_sample_rate_);
   int16_t* destination_r = reinterpret_cast<int16_t*>(audio_buffer);
-  if (play_channels_ == 1) {
-    for (size_t i = 0; i < play_buffer_.size(); ++i) {
-      destination_r[i] = static_cast<int16_t>((sin(phase_) * (1 << 14)));
-      phase_ += phase_increment;
-    }
-  } else if (play_channels_ == 2) {
-    for (size_t i = 0; i < play_buffer_.size() / 2; ++i) {
-      destination_r[2 * i] = destination_r[2 * i + 1] =
-          static_cast<int16_t>((sin(phase_) * (1 << 14)));
-      phase_ += phase_increment;
-    }
+  for (size_t i = 0; i < play_buffer_.size(); ++i) {
+    destination_r[i] = static_cast<int16_t>((sin(phase_) * (1 << 14)));
+    phase_ += phase_increment;
   }
 #else
   memcpy(audio_buffer, play_buffer_.data(),

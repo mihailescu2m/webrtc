@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "media/engine/webrtcvideoencoderfactory.h"
-#include "modules/video_coding/include/video_codec_interface.h"
+#include "modules/video_coding/codecs/vp8/include/vp8.h"
 #include "rtc_base/atomicops.h"
 #include "rtc_base/sequenced_task_checker.h"
 
@@ -32,10 +32,11 @@ class VideoEncoderFactory;
 // webrtc::VideoEncoder instances with the given VideoEncoderFactory.
 // The object is created and destroyed on the worker thread, but all public
 // interfaces should be called from the encoder task queue.
-class SimulcastEncoderAdapter : public VideoEncoder {
+class SimulcastEncoderAdapter : public VP8Encoder {
  public:
-  explicit SimulcastEncoderAdapter(VideoEncoderFactory* factory,
-                                   const SdpVideoFormat& format);
+  explicit SimulcastEncoderAdapter(VideoEncoderFactory* factory);
+  // Deprecated - use webrtc::VideoEncoderFactory instead.
+  explicit SimulcastEncoderAdapter(cricket::WebRtcVideoEncoderFactory* factory);
   virtual ~SimulcastEncoderAdapter();
 
   // Implements VideoEncoder.
@@ -48,7 +49,7 @@ class SimulcastEncoderAdapter : public VideoEncoder {
              const std::vector<FrameType>* frame_types) override;
   int RegisterEncodeCompleteCallback(EncodedImageCallback* callback) override;
   int SetChannelParameters(uint32_t packet_loss, int64_t rtt) override;
-  int SetRateAllocation(const VideoBitrateAllocation& bitrate,
+  int SetRateAllocation(const BitrateAllocation& bitrate,
                         uint32_t new_framerate) override;
 
   // Eventual handler for the contained encoders' EncodedImageCallbacks, but
@@ -99,7 +100,7 @@ class SimulcastEncoderAdapter : public VideoEncoder {
 
   volatile int inited_;  // Accessed atomically.
   VideoEncoderFactory* const factory_;
-  const SdpVideoFormat video_format_;
+  cricket::WebRtcVideoEncoderFactory* const cricket_factory_;
   VideoCodec codec_;
   std::vector<StreamInfo> streaminfos_;
   EncodedImageCallback* encoded_complete_callback_;

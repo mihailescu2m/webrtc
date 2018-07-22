@@ -14,6 +14,7 @@
 
 #include <vector>
 
+#include "rtc_base/basictypes.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/criticalsection.h"
 #include "rtc_base/refcount.h"

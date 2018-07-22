@@ -85,7 +85,6 @@ class DataChannelDelegateAdapter : public DataChannelObserver {
 
 
 @implementation RTCDataChannel {
-  RTCPeerConnectionFactory *_factory;
   rtc::scoped_refptr<webrtc::DataChannelInterface> _nativeDataChannel;
   std::unique_ptr<webrtc::DataChannelDelegateAdapter> _observer;
   BOOL _isObserverRegistered;
@@ -166,12 +165,10 @@ class DataChannelDelegateAdapter : public DataChannelObserver {
 
 #pragma mark - Private
 
-- (instancetype)initWithFactory:(RTCPeerConnectionFactory *)factory
-              nativeDataChannel:
-                  (rtc::scoped_refptr<webrtc::DataChannelInterface>)nativeDataChannel {
+- (instancetype)initWithNativeDataChannel:
+    (rtc::scoped_refptr<webrtc::DataChannelInterface>)nativeDataChannel {
   NSParameterAssert(nativeDataChannel);
   if (self = [super init]) {
-    _factory = factory;
     _nativeDataChannel = nativeDataChannel;
     _observer.reset(new webrtc::DataChannelDelegateAdapter(self));
     _nativeDataChannel->RegisterObserver(_observer.get());

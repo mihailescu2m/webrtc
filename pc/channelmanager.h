@@ -80,38 +80,59 @@ class ChannelManager final {
   // call the appropriate Destroy*Channel method when done.
 
   // Creates a voice channel, to be associated with the specified session.
-  VoiceChannel* CreateVoiceChannel(webrtc::Call* call,
-                                   const cricket::MediaConfig& media_config,
-                                   webrtc::RtpTransportInternal* rtp_transport,
-                                   rtc::Thread* signaling_thread,
-                                   const std::string& content_name,
-                                   bool srtp_required,
-                                   const rtc::CryptoOptions& crypto_options,
-                                   const AudioOptions& options);
+  VoiceChannel* CreateVoiceChannel(
+      webrtc::Call* call,
+      const cricket::MediaConfig& media_config,
+      DtlsTransportInternal* rtp_transport,
+      DtlsTransportInternal* rtcp_transport,
+      rtc::Thread* signaling_thread,
+      const std::string& content_name,
+      bool srtp_required,
+      const AudioOptions& options);
+  // Version of the above that takes PacketTransportInternal.
+  VoiceChannel* CreateVoiceChannel(
+      webrtc::Call* call,
+      const cricket::MediaConfig& media_config,
+      rtc::PacketTransportInternal* rtp_transport,
+      rtc::PacketTransportInternal* rtcp_transport,
+      rtc::Thread* signaling_thread,
+      const std::string& content_name,
+      bool srtp_required,
+      const AudioOptions& options);
   // Destroys a voice channel created by CreateVoiceChannel.
   void DestroyVoiceChannel(VoiceChannel* voice_channel);
 
   // Creates a video channel, synced with the specified voice channel, and
   // associated with the specified session.
+  VideoChannel* CreateVideoChannel(
+      webrtc::Call* call,
+      const cricket::MediaConfig& media_config,
+      DtlsTransportInternal* rtp_transport,
+      DtlsTransportInternal* rtcp_transport,
+      rtc::Thread* signaling_thread,
+      const std::string& content_name,
+      bool srtp_required,
+      const VideoOptions& options);
   // Version of the above that takes PacketTransportInternal.
-  VideoChannel* CreateVideoChannel(webrtc::Call* call,
-                                   const cricket::MediaConfig& media_config,
-                                   webrtc::RtpTransportInternal* rtp_transport,
-                                   rtc::Thread* signaling_thread,
-                                   const std::string& content_name,
-                                   bool srtp_required,
-                                   const rtc::CryptoOptions& crypto_options,
-                                   const VideoOptions& options);
+  VideoChannel* CreateVideoChannel(
+      webrtc::Call* call,
+      const cricket::MediaConfig& media_config,
+      rtc::PacketTransportInternal* rtp_transport,
+      rtc::PacketTransportInternal* rtcp_transport,
+      rtc::Thread* signaling_thread,
+      const std::string& content_name,
+      bool srtp_required,
+      const VideoOptions& options);
   // Destroys a video channel created by CreateVideoChannel.
   void DestroyVideoChannel(VideoChannel* video_channel);
 
   RtpDataChannel* CreateRtpDataChannel(
       const cricket::MediaConfig& media_config,
-      webrtc::RtpTransportInternal* rtp_transport,
+      DtlsTransportInternal* rtp_transport,
+      DtlsTransportInternal* rtcp_transport,
       rtc::Thread* signaling_thread,
       const std::string& content_name,
-      bool srtp_required,
-      const rtc::CryptoOptions& crypto_options);
+      bool srtp_required);
   // Destroys a data channel created by CreateRtpDataChannel.
   void DestroyRtpDataChannel(RtpDataChannel* data_channel);
 
@@ -139,6 +160,29 @@ class ChannelManager final {
   void StopAecDump();
 
  private:
+  VoiceChannel* CreateVoiceChannel_w(
+      webrtc::Call* call,
+      const cricket::MediaConfig& media_config,
+      DtlsTransportInternal* rtp_dtls_transport,
+      DtlsTransportInternal* rtcp_dtls_transport,
+      rtc::PacketTransportInternal* rtp_packet_transport,
+      rtc::PacketTransportInternal* rtcp_packet_transport,
+      rtc::Thread* signaling_thread,
+      const std::string& content_name,
+      bool srtp_required,
+      const AudioOptions& options);
+  VideoChannel* CreateVideoChannel_w(
+      webrtc::Call* call,
+      const cricket::MediaConfig& media_config,
+      DtlsTransportInternal* rtp_dtls_transport,
+      DtlsTransportInternal* rtcp_dtls_transport,
+      rtc::PacketTransportInternal* rtp_packet_transport,
+      rtc::PacketTransportInternal* rtcp_packet_transport,
+      rtc::Thread* signaling_thread,
+      const std::string& content_name,
+      bool srtp_required,
+      const VideoOptions& options);
+
   std::unique_ptr<MediaEngineInterface> media_engine_;  // Nullable.
   std::unique_ptr<DataEngineInterface> data_engine_;    // Non-null.
   bool initialized_ = false;

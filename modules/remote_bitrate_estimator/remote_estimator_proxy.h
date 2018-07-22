@@ -34,7 +34,7 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
  public:
   RemoteEstimatorProxy(const Clock* clock,
                        TransportFeedbackSenderInterface* feedback_sender);
-  ~RemoteEstimatorProxy() override;
+  virtual ~RemoteEstimatorProxy();
 
   void IncomingPacket(int64_t arrival_time_ms,
                       size_t payload_size,

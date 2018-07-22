@@ -30,7 +30,8 @@ MediaOptimization::MediaOptimization(Clock* clock)
   memset(incoming_frame_times_, -1, sizeof(incoming_frame_times_));
 }
 
-MediaOptimization::~MediaOptimization(void) {}
+MediaOptimization::~MediaOptimization(void) {
+}
 
 void MediaOptimization::Reset() {
   rtc::CritScope lock(&crit_sect_);
@@ -89,12 +90,11 @@ uint32_t MediaOptimization::InputFrameRateInternal() {
 }
 
 void MediaOptimization::UpdateWithEncodedData(
-    const size_t encoded_image_length,
-    const FrameType encoded_image_frametype) {
-  size_t encoded_length = encoded_image_length;
+    const EncodedImage& encoded_image) {
+  size_t encoded_length = encoded_image._length;
   rtc::CritScope lock(&crit_sect_);
   if (encoded_length > 0) {
-    const bool delta_frame = encoded_image_frametype != kVideoFrameKey;
+    const bool delta_frame = encoded_image._frameType != kVideoFrameKey;
     frame_dropper_->Fill(encoded_length, delta_frame);
   }
 }

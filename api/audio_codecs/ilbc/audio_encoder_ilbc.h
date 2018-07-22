@@ -14,11 +14,10 @@
 #include <memory>
 #include <vector>
 
-#include "absl/types/optional.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_codecs/audio_encoder.h"
 #include "api/audio_codecs/audio_format.h"
 #include "api/audio_codecs/ilbc/audio_encoder_ilbc_config.h"
+#include "api/optional.h"
 
 namespace webrtc {
 
@@ -27,15 +26,13 @@ namespace webrtc {
 //
 // NOTE: This struct is still under development and may change without notice.
 struct AudioEncoderIlbc {
-  using Config = AudioEncoderIlbcConfig;
-  static absl::optional<AudioEncoderIlbcConfig> SdpToConfig(
+  static rtc::Optional<AudioEncoderIlbcConfig> SdpToConfig(
       const SdpAudioFormat& audio_format);
   static void AppendSupportedEncoders(std::vector<AudioCodecSpec>* specs);
   static AudioCodecInfo QueryAudioEncoder(const AudioEncoderIlbcConfig& config);
   static std::unique_ptr<AudioEncoder> MakeAudioEncoder(
       const AudioEncoderIlbcConfig& config,
-      int payload_type,
-      absl::optional<AudioCodecPairId> codec_pair_id = absl::nullopt);
+      int payload_type);
 };
 
 }  // namespace webrtc

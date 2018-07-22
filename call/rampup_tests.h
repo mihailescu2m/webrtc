@@ -62,6 +62,7 @@ class RampUpTester : public test::EndToEndTest {
                     const std::string& units) const;
   void TriggerTestDone();
 
+  webrtc::RtcEventLogNullImpl event_log_;
   rtc::Event stop_event_;
   Clock* const clock_;
   FakeNetworkPipe::Config forward_transport_config_;
@@ -79,7 +80,7 @@ class RampUpTester : public test::EndToEndTest {
   typedef std::map<uint32_t, uint32_t> SsrcMap;
   class VideoStreamFactory;
 
-  void ModifySenderCallConfig(Call::Config* config) override;
+  Call::Config GetSenderCallConfig() override;
   void OnVideoStreamsCreated(
       VideoSendStream* send_stream,
       const std::vector<VideoReceiveStream*>& receive_streams) override;
@@ -138,7 +139,7 @@ class RampUpDownUpTester : public RampUpTester {
     kTransitionToNextState,
   };
 
-  void ModifyReceiverCallConfig(Call::Config* config);
+  Call::Config GetReceiverCallConfig() override;
 
   std::string GetModifierString() const;
   int GetExpectedHighBitrate() const;

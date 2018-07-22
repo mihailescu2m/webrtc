@@ -54,7 +54,7 @@ class MetricsDefaultTest : public ::testing::Test {
   MetricsDefaultTest() {}
 
  protected:
-  void SetUp() override { metrics::Reset(); }
+  virtual void SetUp() { metrics::Reset(); }
 };
 
 TEST_F(MetricsDefaultTest, Reset) {

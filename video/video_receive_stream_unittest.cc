@@ -10,8 +10,8 @@
 
 #include <vector>
 
-#include "test/gmock.h"
 #include "test/gtest.h"
+#include "test/gmock.h"
 
 #include "api/video_codecs/video_decoder.h"
 #include "call/rtp_stream_receiver_controller.h"
@@ -50,9 +50,10 @@ class MockVideoDecoder : public VideoDecoder {
  public:
   MOCK_METHOD2(InitDecode,
                int32_t(const VideoCodec* config, int32_t number_of_cores));
-  MOCK_METHOD4(Decode,
+  MOCK_METHOD5(Decode,
                int32_t(const EncodedImage& input,
                        bool missing_frames,
+                       const RTPFragmentationHeader* fragmentation,
                        const CodecSpecificInfo* codec_specific_info,
                        int64_t render_time_ms));
   MOCK_METHOD1(RegisterDecodeCompleteCallback,
@@ -66,10 +67,10 @@ class MockVideoDecoder : public VideoDecoder {
 class VideoReceiveStreamTest : public testing::Test {
  public:
   VideoReceiveStreamTest()
-      : process_thread_(ProcessThread::Create("TestThread")),
-        override_field_trials_(kNewJitterBufferFieldTrialEnabled),
+      : override_field_trials_(kNewJitterBufferFieldTrialEnabled),
         config_(&mock_transport_),
-        call_stats_(Clock::GetRealTimeClock(), process_thread_.get()) {}
+        call_stats_(Clock::GetRealTimeClock()),
+        process_thread_(ProcessThread::Create("TestThread")) {}
 
   void SetUp() {
     constexpr int kDefaultNumCpuCores = 2;
@@ -90,12 +91,11 @@ class VideoReceiveStreamTest : public testing::Test {
     config_.decoders.push_back(null_decoder);
 
     video_receive_stream_.reset(new webrtc::internal::VideoReceiveStream(
-        &rtp_stream_receiver_controller_, kDefaultNumCpuCores, &packet_router_,
-        config_.Copy(), process_thread_.get(), &call_stats_));
+        &rtp_stream_receiver_controller_, kDefaultNumCpuCores,
+        &packet_router_, config_.Copy(), process_thread_.get(), &call_stats_));
   }
 
  protected:
-  std::unique_ptr<ProcessThread> process_thread_;
   webrtc::test::ScopedFieldTrials override_field_trials_;
   VideoReceiveStream::Config config_;
   CallStats call_stats_;
@@ -104,6 +104,7 @@ class VideoReceiveStreamTest : public testing::Test {
   cricket::FakeVideoRenderer fake_renderer_;
   MockTransport mock_transport_;
   PacketRouter packet_router_;
+  std::unique_ptr<ProcessThread> process_thread_;
   RtpStreamReceiverController rtp_stream_receiver_controller_;
   std::unique_ptr<webrtc::internal::VideoReceiveStream> video_receive_stream_;
 };
@@ -127,7 +128,7 @@ TEST_F(VideoReceiveStreamTest, CreateFrameFromH264FmtpSpropAndIdr) {
       }));
   EXPECT_CALL(mock_h264_video_decoder_, RegisterDecodeCompleteCallback(_));
   video_receive_stream_->Start();
-  EXPECT_CALL(mock_h264_video_decoder_, Decode(_, false, _, _));
+  EXPECT_CALL(mock_h264_video_decoder_, Decode(_, false, _, _, _));
   RtpPacketReceived parsed_packet;
   ASSERT_TRUE(parsed_packet.Parse(rtppacket.data(), rtppacket.size()));
   rtp_stream_receiver_controller_.OnRtpPacket(parsed_packet);

@@ -16,8 +16,9 @@
 
 @implementation RTCPeerConnection (DataChannel)
 
-- (nullable RTCDataChannel *)dataChannelForLabel:(NSString *)label
-                                   configuration:(RTCDataChannelConfiguration *)configuration {
+- (RTCDataChannel *)dataChannelForLabel:(NSString *)label
+                          configuration:
+    (RTCDataChannelConfiguration *)configuration {
   std::string labelString = [NSString stdStringForString:label];
   const webrtc::DataChannelInit nativeInit =
       configuration.nativeDataChannelInit;
@@ -27,7 +28,7 @@
   if (!dataChannel) {
     return nil;
   }
-  return [[RTCDataChannel alloc] initWithFactory:self.factory nativeDataChannel:dataChannel];
+  return [[RTCDataChannel alloc] initWithNativeDataChannel:dataChannel];
 }
 
 @end

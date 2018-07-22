@@ -11,7 +11,6 @@
 package org.webrtc;
 
 import java.nio.ByteBuffer;
-import javax.annotation.Nullable;
 
 public class NV12Buffer implements VideoFrame.Buffer {
   private final int width;
@@ -19,16 +18,21 @@ public class NV12Buffer implements VideoFrame.Buffer {
   private final int stride;
   private final int sliceHeight;
   private final ByteBuffer buffer;
-  private final RefCountDelegate refCountDelegate;
+  private final Runnable releaseCallback;
+  private final Object refCountLock = new Object();
+
+  private int refCount;
 
   public NV12Buffer(int width, int height, int stride, int sliceHeight, ByteBuffer buffer,
-      @Nullable Runnable releaseCallback) {
+      Runnable releaseCallback) {
     this.width = width;
     this.height = height;
     this.stride = stride;
     this.sliceHeight = sliceHeight;
     this.buffer = buffer;
-    this.refCountDelegate = new RefCountDelegate(releaseCallback);
+    this.releaseCallback = releaseCallback;
+
+    refCount = 1;
   }
 
   @Override
@@ -48,12 +52,18 @@ public class NV12Buffer implements VideoFrame.Buffer {
 
   @Override
   public void retain() {
-    refCountDelegate.retain();
+    synchronized (refCountLock) {
+      ++refCount;
+    }
   }
 
   @Override
   public void release() {
-    refCountDelegate.release();
+    synchronized (refCountLock) {
+      if (--refCount == 0 && releaseCallback != null) {
+        releaseCallback.run();
+      }
+    }
   }
 
   @Override

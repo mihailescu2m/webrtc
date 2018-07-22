@@ -164,4 +164,5 @@ TEST(SendSideBweTest, SettingSendBitrateOverridesDelayBasedEstimate) {
   EXPECT_EQ(bitrate_bps, kForcedHighBitrate);
 }
 
+
 }  // namespace webrtc

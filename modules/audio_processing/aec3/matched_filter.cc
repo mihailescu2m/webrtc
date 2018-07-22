@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <numeric>
 
-#include "api/audio/echo_canceller3_config.h"
+#include "modules/audio_processing/include/audio_processing.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
 #include "rtc_base/logging.h"
 
@@ -89,16 +89,11 @@ void MatchedFilterCore_NEON(size_t x_start_index,
     s += v[0] + v[1] + v[2] + v[3];
 
     // Compute the matched filter error.
-    float e = y[i] - s;
-    const bool saturation = y[i] >= 32000.f || y[i] <= -32000.f ||
-                            s >= 32000.f || s <= -32000.f || e >= 32000.f ||
-                            e <= -32000.f;
-
-    e = std::min(32767.f, std::max(-32768.f, e));
-    (*error_sum) += e * e;
+    const float e = std::min(32767.f, std::max(-32768.f, y[i] - s));
+    *error_sum += e * e;
 
     // Update the matched filter estimate in an NLMS manner.
-    if (x2_sum > x2_sum_threshold && !saturation) {
+    if (x2_sum > x2_sum_threshold) {
       RTC_DCHECK_LT(0.f, x2_sum);
       const float alpha = 0.7f * e / x2_sum;
       const float32x4_t alpha_128 = vmovq_n_f32(alpha);
@@ -204,16 +199,11 @@ void MatchedFilterCore_SSE2(size_t x_start_index,
     s += v[0] + v[1] + v[2] + v[3];
 
     // Compute the matched filter error.
-    float e = y[i] - s;
-    const bool saturation = y[i] >= 32000.f || y[i] <= -32000.f ||
-                            s >= 32000.f || s <= -32000.f || e >= 32000.f ||
-                            e <= -32000.f;
-
-    e = std::min(32767.f, std::max(-32768.f, e));
-    (*error_sum) += e * e;
+    const float e = std::min(32767.f, std::max(-32768.f, y[i] - s));
+    *error_sum += e * e;
 
     // Update the matched filter estimate in an NLMS manner.
-    if (x2_sum > x2_sum_threshold && !saturation) {
+    if (x2_sum > x2_sum_threshold) {
       RTC_DCHECK_LT(0.f, x2_sum);
       const float alpha = 0.7f * e / x2_sum;
       const __m128 alpha_128 = _mm_set1_ps(alpha);
@@ -275,16 +265,11 @@ void MatchedFilterCore(size_t x_start_index,
     }
 
     // Compute the matched filter error.
-    float e = y[i] - s;
-    const bool saturation = y[i] >= 32000.f || y[i] <= -32000.f ||
-                            s >= 32000.f || s <= -32000.f || e >= 32000.f ||
-                            e <= -32000.f;
-
-    e = std::min(32767.f, std::max(-32768.f, e));
+    const float e = std::min(32767.f, std::max(-32768.f, y[i] - s));
     (*error_sum) += e * e;
 
     // Update the matched filter estimate in an NLMS manner.
-    if (x2_sum > x2_sum_threshold && !saturation) {
+    if (x2_sum > x2_sum_threshold) {
       RTC_DCHECK_LT(0.f, x2_sum);
       const float alpha = 0.7f * e / x2_sum;
 
@@ -353,7 +338,7 @@ void MatchedFilter::Update(const DownsampledRenderBuffer& render_buffer,
     bool filters_updated = false;
 
     size_t x_start_index =
-        (render_buffer.read + alignment_shift + sub_block_size_ - 1) %
+        (render_buffer.position + alignment_shift + sub_block_size_ - 1) %
         render_buffer.buffer.size();
 
     switch (optimization_) {

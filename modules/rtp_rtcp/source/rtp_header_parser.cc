@@ -18,7 +18,7 @@ namespace webrtc {
 class RtpHeaderParserImpl : public RtpHeaderParser {
  public:
   RtpHeaderParserImpl();
-  ~RtpHeaderParserImpl() override = default;
+  virtual ~RtpHeaderParserImpl() {}
 
   bool Parse(const uint8_t* packet,
              size_t length,

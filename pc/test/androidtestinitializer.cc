@@ -12,6 +12,7 @@
 
 #include <pthread.h>
 
+
 #include "rtc_base/ignore_wundef.h"
 
 // Note: this dependency is dangerous since it reaches into Chromium's base.
@@ -21,6 +22,7 @@
 RTC_PUSH_IGNORING_WUNDEF()
 #include "base/android/jni_android.h"
 RTC_POP_IGNORING_WUNDEF()
+
 
 #include "modules/utility/include/jvm_android.h"
 #include "rtc_base/checks.h"

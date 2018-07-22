@@ -17,6 +17,13 @@
 namespace webrtc {
 namespace video_coding {
 
+FrameObject::FrameObject()
+    : picture_id(0),
+      spatial_layer(0),
+      timestamp(0),
+      num_references(0),
+      inter_layer_predicted(false) {}
+
 RtpFrameObject::RtpFrameObject(PacketBuffer* packet_buffer,
                                uint16_t first_seq_num,
                                uint16_t last_seq_num,
@@ -32,11 +39,11 @@ RtpFrameObject::RtpFrameObject(PacketBuffer* packet_buffer,
   VCMPacket* first_packet = packet_buffer_->GetPacket(first_seq_num);
   RTC_CHECK(first_packet);
 
-  // EncodedFrame members
+  // RtpFrameObject members
   frame_type_ = first_packet->frameType;
   codec_type_ = first_packet->codec;
 
-  // TODO(philipel): Remove when encoded image is replaced by EncodedFrame.
+  // TODO(philipel): Remove when encoded image is replaced by FrameObject.
   // VCMEncodedFrame members
   CopyCodecSpecific(&first_packet->video_header);
   _completeFrame = true;
@@ -68,7 +75,7 @@ RtpFrameObject::RtpFrameObject(PacketBuffer* packet_buffer,
   _encodedWidth = first_packet->width;
   _encodedHeight = first_packet->height;
 
-  // EncodedFrame members
+  // FrameObject members
   timestamp = first_packet->timestamp;
 
   VCMPacket* last_packet = packet_buffer_->GetPacket(last_seq_num);
@@ -84,7 +91,7 @@ RtpFrameObject::RtpFrameObject(PacketBuffer* packet_buffer,
   _rotation_set = true;
   content_type_ = last_packet->video_header.content_type;
   if (last_packet->video_header.video_timing.flags !=
-      VideoSendTiming::kInvalid) {
+      TimingFrameFlags::kInvalid) {
     // ntp_time_ms_ may be -1 if not estimated yet. This is not a problem,
     // as this will be dealt with at the time of reporting.
     timing_.encode_start_ms =
@@ -156,12 +163,12 @@ bool RtpFrameObject::delayed_by_retransmission() const {
   return times_nacked() > 0;
 }
 
-absl::optional<RTPVideoTypeHeader> RtpFrameObject::GetCodecHeader() const {
+rtc::Optional<RTPVideoTypeHeader> RtpFrameObject::GetCodecHeader() const {
   rtc::CritScope lock(&packet_buffer_->crit_);
   VCMPacket* packet = packet_buffer_->GetPacket(first_seq_num_);
   if (!packet)
-    return absl::nullopt;
-  return packet->video_header.video_type_header;
+    return rtc::nullopt;
+  return packet->video_header.codecHeader;
 }
 
 }  // namespace video_coding

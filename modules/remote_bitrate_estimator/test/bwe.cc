@@ -18,7 +18,6 @@
 #include "modules/remote_bitrate_estimator/test/estimators/send_side.h"
 #include "modules/remote_bitrate_estimator/test/estimators/tcp.h"
 #include "rtc_base/constructormagic.h"
-#include "rtc_base/system/fallthrough.h"
 
 namespace webrtc {
 namespace testing {
@@ -34,13 +33,15 @@ BweReceiver::BweReceiver(int flow_id)
     : flow_id_(flow_id),
       received_packets_(kSetCapacity),
       rate_counter_(),
-      loss_account_() {}
+      loss_account_() {
+}
 
 BweReceiver::BweReceiver(int flow_id, int64_t window_size_ms)
     : flow_id_(flow_id),
       received_packets_(kSetCapacity),
       rate_counter_(window_size_ms),
-      loss_account_() {}
+      loss_account_() {
+}
 
 void BweReceiver::ReceivePacket(int64_t arrival_time_ms,
                                 const MediaPacket& media_packet) {
@@ -56,14 +57,10 @@ void BweReceiver::ReceivePacket(int64_t arrival_time_ms,
                             static_cast<uint32_t>(media_packet.payload_size()));
 }
 
-FeedbackPacket* BweReceiver::GetFeedback(int64_t now_ms) {
-  return nullptr;
-}
-
 class NullBweSender : public BweSender {
  public:
   NullBweSender() {}
-  ~NullBweSender() override {}
+  virtual ~NullBweSender() {}
 
   int GetFeedbackIntervalMs() const override { return 1000; }
   void GiveFeedback(const FeedbackPacket& feedback) override {}
@@ -100,7 +97,7 @@ BweSender* CreateBweSender(BandwidthEstimatorType estimator,
     case kBbrEstimator:
       return new BbrBweSender(observer, clock);
     case kTcpEstimator:
-      RTC_FALLTHROUGH();
+      FALLTHROUGH();
     case kNullEstimator:
       return new NullBweSender();
   }
@@ -218,8 +215,6 @@ float BweReceiver::RecentPacketLossRatio() {
 
   return static_cast<float>(gap - number_packets_received) / gap;
 }
-
-LinkedSet::LinkedSet(int capacity) : capacity_(capacity) {}
 
 LinkedSet::~LinkedSet() {
   while (!empty())

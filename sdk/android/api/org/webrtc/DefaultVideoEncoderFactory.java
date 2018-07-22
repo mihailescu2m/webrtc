@@ -10,39 +10,34 @@
 
 package org.webrtc;
 
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-/** Helper class that combines HW and SW encoders. */
 public class DefaultVideoEncoderFactory implements VideoEncoderFactory {
   private final VideoEncoderFactory hardwareVideoEncoderFactory;
-  private final VideoEncoderFactory softwareVideoEncoderFactory = new SoftwareVideoEncoderFactory();
+  private final VideoEncoderFactory softwareVideoEncoderFactory;
 
-  /** Create encoder factory using default hardware encoder factory. */
   public DefaultVideoEncoderFactory(
       EglBase.Context eglContext, boolean enableIntelVp8Encoder, boolean enableH264HighProfile) {
-    this.hardwareVideoEncoderFactory =
-        new HardwareVideoEncoderFactory(eglContext, enableIntelVp8Encoder, enableH264HighProfile);
+    hardwareVideoEncoderFactory = new HardwareVideoEncoderFactory(
+        eglContext, enableIntelVp8Encoder, enableH264HighProfile, false /* fallbackToSoftware */);
+    softwareVideoEncoderFactory = new SoftwareVideoEncoderFactory();
   }
 
-  /** Create encoder factory using explicit hardware encoder factory. */
+  /* This is used for testing. */
   DefaultVideoEncoderFactory(VideoEncoderFactory hardwareVideoEncoderFactory) {
     this.hardwareVideoEncoderFactory = hardwareVideoEncoderFactory;
+    softwareVideoEncoderFactory = new SoftwareVideoEncoderFactory();
   }
 
-  @Nullable
   @Override
   public VideoEncoder createEncoder(VideoCodecInfo info) {
-    final VideoEncoder softwareEncoder = softwareVideoEncoderFactory.createEncoder(info);
-    final VideoEncoder hardwareEncoder = hardwareVideoEncoderFactory.createEncoder(info);
-    if (hardwareEncoder != null && softwareEncoder != null) {
-      // Both hardware and software supported, wrap it in a software fallback
-      return new VideoEncoderFallback(
-          /* fallback= */ softwareEncoder, /* primary= */ hardwareEncoder);
+    final VideoEncoder videoEncoder = hardwareVideoEncoderFactory.createEncoder(info);
+    if (videoEncoder != null) {
+      return videoEncoder;
     }
-    return hardwareEncoder != null ? hardwareEncoder : softwareEncoder;
+    return softwareVideoEncoderFactory.createEncoder(info);
   }
 
   @Override

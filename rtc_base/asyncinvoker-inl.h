@@ -48,12 +48,14 @@ class AsyncClosure {
 template <class FunctorT>
 class FireAndForgetAsyncClosure : public AsyncClosure {
  public:
-  explicit FireAndForgetAsyncClosure(AsyncInvoker* invoker, FunctorT&& functor)
-      : AsyncClosure(invoker), functor_(std::forward<FunctorT>(functor)) {}
-  virtual void Execute() { functor_(); }
-
+  explicit FireAndForgetAsyncClosure(AsyncInvoker* invoker,
+                                     const FunctorT& functor)
+      : AsyncClosure(invoker), functor_(functor) {}
+  virtual void Execute() {
+    functor_();
+  }
  private:
-  typename std::decay<FunctorT>::type functor_;
+  FunctorT functor_;
 };
 
 }  // namespace rtc

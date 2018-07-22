@@ -21,6 +21,8 @@ rtc_static_library("ortc") {
     "ortcrtpreceiveradapter.h",
     "ortcrtpsenderadapter.cc",
     "ortcrtpsenderadapter.h",
+    "rtpparametersconversion.cc",
+    "rtpparametersconversion.h",
     "rtptransportadapter.cc",
     "rtptransportadapter.h",
     "rtptransportcontrolleradapter.cc",
@@ -31,28 +33,22 @@ rtc_static_library("ortc") {
   # PeerConnection code shares, so that ortc can depend on that instead of
   # libjingle_peerconnection.
   deps = [
-    "../api:libjingle_peerconnection_api",
-    "../api:ortc_api",
-    "../api/video_codecs:builtin_video_decoder_factory",
-    "../api/video_codecs:builtin_video_encoder_factory",
+    "../api:optional",
     "../call:call_interfaces",
     "../call:rtp_sender",
     "../logging:rtc_event_log_api",
-    "../logging:rtc_event_log_impl_base",
-    "../media:rtc_audio_video",
     "../media:rtc_media",
     "../media:rtc_media_base",
     "../modules/audio_processing:audio_processing",
     "../p2p:rtc_p2p",
     "../pc:libjingle_peerconnection",
-    "../pc:peerconnection",
     "../pc:rtc_pc",
-    "../pc:rtc_pc_base",
-    "../rtc_base:checks",
     "../rtc_base:rtc_base",
     "../rtc_base:rtc_base_approved",
-    "//third_party/abseil-cpp/absl/memory",
-    "//third_party/abseil-cpp/absl/types:optional",
+  ]
+
+  public_deps = [
+    "../api:ortc_api",
   ]
 
   if (!build_with_chromium && is_clang) {
@@ -70,6 +66,7 @@ if (rtc_include_tests) {
       "ortcfactory_unittest.cc",
       "ortcrtpreceiver_unittest.cc",
       "ortcrtpsender_unittest.cc",
+      "rtpparametersconversion_unittest.cc",
       "rtptransport_unittest.cc",
       "rtptransportcontroller_unittest.cc",
       "srtptransport_unittest.cc",
@@ -80,20 +77,17 @@ if (rtc_include_tests) {
     deps = [
       ":ortc",
       "../api:libjingle_peerconnection_api",
-      "../api:ortc_api",
       "../api/audio_codecs:builtin_audio_decoder_factory",
       "../api/audio_codecs:builtin_audio_encoder_factory",
       "../media:rtc_media_tests_utils",
       "../p2p:p2p_test_utils",
       "../p2p:rtc_p2p",
       "../pc:pc_test_utils",
-      "../pc:peerconnection",
       "../rtc_base:rtc_base",
       "../rtc_base:rtc_base_approved",
       "../rtc_base:rtc_base_tests_main",
       "../rtc_base:rtc_base_tests_utils",
       "../system_wrappers:metrics_default",
-      "../system_wrappers:runtime_enabled_features_default",
     ]
 
     if (!build_with_chromium && is_clang) {

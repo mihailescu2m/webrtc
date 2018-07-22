@@ -15,8 +15,9 @@
 #include <map>
 #include <utility>
 
-#include "absl/types/optional.h"
 #include "api/array_view.h"
+#include "api/optional.h"
+#include "rtc_base/basictypes.h"
 
 namespace webrtc {
 
@@ -89,7 +90,7 @@ bool MultimapHasKey(const Container& c,
   return it_range.first != it_range.second;
 }
 
-absl::optional<uint32_t> ParseRtcpPacketSenderSsrc(
+rtc::Optional<uint32_t> ParseRtcpPacketSenderSsrc(
     rtc::ArrayView<const uint8_t> packet);
 
 }  // namespace webrtc

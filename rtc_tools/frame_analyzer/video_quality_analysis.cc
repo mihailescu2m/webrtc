@@ -14,11 +14,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <algorithm>
-#include <map>
 #include <string>
+#include <map>
 #include <utility>
-
-#include "test/testsupport/perf_test.h"
 
 #define STATS_LINE_LENGTH 32
 #define Y4M_FILE_HEADER_MAX_SIZE 200
@@ -35,7 +33,7 @@ int GetI420FrameSize(int width, int height) {
   int half_width = (width + 1) >> 1;
   int half_height = (height + 1) >> 1;
 
-  int y_plane = width * height;            // I420 Y plane.
+  int y_plane = width * height;  // I420 Y plane.
   int u_plane = half_width * half_height;  // I420 U plane.
   int v_plane = half_width * half_height;  // I420 V plane.
 
@@ -88,7 +86,7 @@ bool GetNextStatsLine(FILE* stats_file, char* line) {
     line[chars] = buf;
     ++chars;
   }
-  line[chars - 1] = '\0';  // Strip the trailing \n and put end of string.
+  line[chars-1] = '\0';  // Strip the trailing \n and put end of string.
   return true;
 }
 
@@ -112,7 +110,8 @@ bool ExtractFrameFromYuvFile(const char* i420_file_name,
   fseek(input_file, offset, SEEK_SET);
 
   size_t bytes_read = fread(result_frame, 1, frame_size, input_file);
-  if (bytes_read != static_cast<size_t>(frame_size) && ferror(input_file)) {
+  if (bytes_read != static_cast<size_t>(frame_size) &&
+      ferror(input_file)) {
     fprintf(stdout, "Error while reading frame no %d from file %s\n",
             frame_number, i420_file_name);
     errors = true;
@@ -143,7 +142,8 @@ bool ExtractFrameFromY4mFile(const char* y4m_file_name,
   size_t bytes_read =
       fread(frame_header, 1, Y4M_FILE_HEADER_MAX_SIZE - 1, input_file);
   if (bytes_read != static_cast<size_t>(frame_size) && ferror(input_file)) {
-    fprintf(stdout, "Error while reading frame from file %s\n", y4m_file_name);
+    fprintf(stdout, "Error while reading frame from file %s\n",
+        y4m_file_name);
     fclose(input_file);
     return false;
   }
@@ -152,7 +152,7 @@ bool ExtractFrameFromY4mFile(const char* y4m_file_name,
   std::size_t found = header_contents.find(Y4M_FRAME_DELIMITER);
   if (found == std::string::npos) {
     fprintf(stdout, "Corrupted Y4M header, could not find \"FRAME\" in %s\n",
-            header_contents.c_str());
+        header_contents.c_str());
     fclose(input_file);
     return false;
   }
@@ -204,17 +204,19 @@ double CalculateMetrics(VideoAnalysisMetricsType video_metrics_type,
   switch (video_metrics_type) {
     case kPSNR:
       // In the following: stride is determined by width.
-      result = libyuv::I420Psnr(src_y_a, width, src_u_a, half_width, src_v_a,
-                                half_width, src_y_b, width, src_u_b, half_width,
-                                src_v_b, half_width, width, height);
+      result = libyuv::I420Psnr(src_y_a, width, src_u_a, half_width,
+                                src_v_a, half_width, src_y_b, width,
+                                src_u_b, half_width, src_v_b, half_width,
+                                width, height);
       // LibYuv sets the max psnr value to 128, we restrict it to 48.
       // In case of 0 mse in one frame, 128 can skew the results significantly.
       result = (result > 48.0) ? 48.0 : result;
       break;
     case kSSIM:
-      result = libyuv::I420Ssim(src_y_a, stride_y, src_u_a, stride_uv, src_v_a,
-                                stride_uv, src_y_b, stride_y, src_u_b,
-                                stride_uv, src_v_b, stride_uv, width, height);
+      result = libyuv::I420Ssim(src_y_a, stride_y, src_u_a, stride_uv,
+                                src_v_a, stride_uv, src_y_b, stride_y,
+                                src_u_b, stride_uv, src_v_b, stride_uv,
+                                width, height);
       break;
     default:
       assert(false);
@@ -316,6 +318,13 @@ void RunAnalysis(const char* reference_file_name,
   delete[] reference_frame;
 }
 
+void PrintMaxRepeatedAndSkippedFrames(const std::string& label,
+                                      const std::string& stats_file_ref_name,
+                                      const std::string& stats_file_test_name) {
+  PrintMaxRepeatedAndSkippedFrames(stdout, label, stats_file_ref_name,
+                                   stats_file_test_name);
+}
+
 std::vector<std::pair<int, int> > CalculateFrameClusters(
     FILE* file,
     int* num_decode_errors) {
@@ -350,9 +359,10 @@ std::vector<std::pair<int, int> > CalculateFrameClusters(
   return frame_cnt;
 }
 
-void GetMaxRepeatedAndSkippedFrames(const std::string& stats_file_ref_name,
-                                    const std::string& stats_file_test_name,
-                                    ResultsContainer* results) {
+void PrintMaxRepeatedAndSkippedFrames(FILE* output,
+                                      const std::string& label,
+                                      const std::string& stats_file_ref_name,
+                                      const std::string& stats_file_test_name) {
   FILE* stats_file_ref = fopen(stats_file_ref_name.c_str(), "r");
   FILE* stats_file_test = fopen(stats_file_test_name.c_str(), "r");
   if (stats_file_ref == NULL) {
@@ -450,52 +460,50 @@ void GetMaxRepeatedAndSkippedFrames(const std::string& stats_file_ref_name,
       }
       continue;
     }
-    fprintf(stdout,
+    fprintf(output,
             "Found barcode %d in test video, which is not in reference video\n",
             it_test->first);
     break;
   }
 
-  results->max_repeated_frames = max_repeated_frames;
-  results->max_skipped_frames = max_skipped_frames;
-  results->total_skipped_frames = total_skipped_frames;
-  results->decode_errors_ref = decode_errors_ref;
-  results->decode_errors_test = decode_errors_test;
+  fprintf(output, "RESULT Max_repeated: %s= %d\n", label.c_str(),
+          max_repeated_frames);
+  fprintf(output, "RESULT Max_skipped: %s= %d\n", label.c_str(),
+          max_skipped_frames);
+  fprintf(output, "RESULT Total_skipped: %s= %d\n", label.c_str(),
+          total_skipped_frames);
+  fprintf(output, "RESULT Decode_errors_reference: %s= %d\n", label.c_str(),
+          decode_errors_ref);
+  fprintf(output, "RESULT Decode_errors_test: %s= %d\n", label.c_str(),
+          decode_errors_test);
 }
 
 void PrintAnalysisResults(const std::string& label, ResultsContainer* results) {
   PrintAnalysisResults(stdout, label, results);
 }
 
-void PrintAnalysisResults(FILE* output,
-                          const std::string& label,
+void PrintAnalysisResults(FILE* output, const std::string& label,
                           ResultsContainer* results) {
-  SetPerfResultsOutput(output);
+  std::vector<AnalysisResult>::iterator iter;
+
+  fprintf(output, "RESULT Unique_frames_count: %s= %u score\n", label.c_str(),
+          static_cast<unsigned int>(results->frames.size()));
 
   if (results->frames.size() > 0u) {
-    PrintResult("Unique_frames_count", "", label, results->frames.size(),
-                "score", false);
-
-    std::vector<double> psnr_values;
-    std::vector<double> ssim_values;
-    for (const auto& frame : results->frames) {
-      psnr_values.push_back(frame.psnr_value);
-      ssim_values.push_back(frame.ssim_value);
+    fprintf(output, "RESULT PSNR: %s= [", label.c_str());
+    for (iter = results->frames.begin(); iter != results->frames.end() - 1;
+         ++iter) {
+      fprintf(output, "%f,", iter->psnr_value);
     }
+    fprintf(output, "%f] dB\n", iter->psnr_value);
 
-    PrintResultList("PSNR", "", label, psnr_values, "dB", false);
-    PrintResultList("SSIM", "", label, ssim_values, "score", false);
+    fprintf(output, "RESULT SSIM: %s= [", label.c_str());
+    for (iter = results->frames.begin(); iter != results->frames.end() - 1;
+         ++iter) {
+      fprintf(output, "%f,", iter->ssim_value);
+    }
+    fprintf(output, "%f] score\n", iter->ssim_value);
   }
-
-  PrintResult("Max_repeated", "", label, results->max_repeated_frames, "",
-              false);
-  PrintResult("Max_skipped", "", label, results->max_skipped_frames, "", false);
-  PrintResult("Total_skipped", "", label, results->total_skipped_frames, "",
-              false);
-  PrintResult("Decode_errors_reference", "", label, results->decode_errors_ref,
-              "", false);
-  PrintResult("Decode_errors_test", "", label, results->decode_errors_test, "",
-              false);
 }
 
 }  // namespace test

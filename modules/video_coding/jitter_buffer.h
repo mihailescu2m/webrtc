@@ -25,6 +25,7 @@
 #include "modules/video_coding/inter_frame_delay.h"
 #include "modules/video_coding/jitter_buffer_common.h"
 #include "modules/video_coding/jitter_estimator.h"
+#include "modules/video_coding/nack_module.h"
 #include "rtc_base/constructormagic.h"
 #include "rtc_base/criticalsection.h"
 #include "rtc_base/thread_annotations.h"
@@ -75,9 +76,6 @@ class FrameList
 class Vp9SsMap {
  public:
   typedef std::map<uint32_t, GofInfoVP9, TimestampLessThan> SsMap;
-  Vp9SsMap();
-  ~Vp9SsMap();
-
   bool Insert(const VCMPacket& packet);
   void Reset();
 

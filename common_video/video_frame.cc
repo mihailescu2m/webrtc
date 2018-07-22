@@ -31,8 +31,10 @@ size_t EncodedImage::GetBufferPaddingBytes(VideoCodecType codec_type) {
     case kVideoCodecH264:
       return kBufferPaddingBytesH264;
     case kVideoCodecI420:
+    case kVideoCodecRED:
+    case kVideoCodecULPFEC:
+    case kVideoCodecFlexfec:
     case kVideoCodecGeneric:
-    case kVideoCodecMultiplex:
     case kVideoCodecUnknown:
       return 0;
   }
@@ -42,10 +44,8 @@ size_t EncodedImage::GetBufferPaddingBytes(VideoCodecType codec_type) {
 
 EncodedImage::EncodedImage() : EncodedImage(nullptr, 0, 0) {}
 
-EncodedImage::EncodedImage(const EncodedImage&) = default;
-
 EncodedImage::EncodedImage(uint8_t* buffer, size_t length, size_t size)
-    : _buffer(buffer), _length(length), _size(size) {}
+      : _buffer(buffer), _length(length), _size(size) {}
 
 void EncodedImage::SetEncodeTime(int64_t encode_start_ms,
                                  int64_t encode_finish_ms) {

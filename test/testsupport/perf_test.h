@@ -8,13 +8,16 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+// A stripped-down version of Chromium's chrome/test/perf/perf_test.h.
+// Several functions have been removed; the prototypes of the remainder have
+// not been changed.
+
 #ifndef TEST_TESTSUPPORT_PERF_TEST_H_
 #define TEST_TESTSUPPORT_PERF_TEST_H_
 
-#include "api/array_view.h"
-
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace webrtc {
 namespace test {
@@ -50,6 +53,7 @@ void PrintResultMeanAndError(const std::string& measurement,
                              const std::string& units,
                              bool important);
 
+
 // Like PrintResult(), but prints an entire list of results. The |values|
 // will generally be a list of comma-separated numbers. A typical
 // post-processing step might produce plots of their mean and standard
@@ -57,24 +61,9 @@ void PrintResultMeanAndError(const std::string& measurement,
 void PrintResultList(const std::string& measurement,
                      const std::string& modifier,
                      const std::string& trace,
-                     rtc::ArrayView<const double> values,
+                     const std::vector<double>& values,
                      const std::string& units,
                      bool important);
-
-// Returns all perf results to date in a JSON string formatted as described in
-// https://github.com/catapult-project/catapult/blob/master/dashboard/docs/data-format.md
-std::string GetPerfResultsJSON();
-
-// Writes the JSON representation of the perf results returned by
-// GetPerfResultsJSON() to the file in output_path.
-void WritePerfResults(const std::string& output_path);
-
-// By default, perf results are printed to stdout. Set the FILE* to where they
-// should be printing instead.
-void SetPerfResultsOutput(FILE* output);
-
-// You shouldn't use this function. It's only used to test the functions above.
-void ClearPerfResults();
 
 }  // namespace test
 }  // namespace webrtc

@@ -23,7 +23,8 @@ namespace webrtc {
 template <class T>
 class Notifier : public T {
  public:
-  Notifier() {}
+  Notifier() {
+  }
 
   virtual void RegisterObserver(ObserverInterface* observer) {
     RTC_DCHECK(observer != nullptr);

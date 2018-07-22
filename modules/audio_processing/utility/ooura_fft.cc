@@ -21,7 +21,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/audio_processing/utility/ooura_fft.h"
+#include "modules/audio_processing//utility/ooura_fft.h"
 
 #include <math.h>
 
@@ -312,6 +312,7 @@ static void rftbsub_128_C(float* a) {
   a[65] = -a[65];
 }
 #endif
+
 
 }  // namespace
 

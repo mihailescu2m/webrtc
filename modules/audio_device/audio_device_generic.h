@@ -71,6 +71,10 @@ class AudioDeviceGeneric {
   virtual int32_t StopRecording() = 0;
   virtual bool Recording() const = 0;
 
+  // Microphone Automatic Gain Control (AGC)
+  virtual int32_t SetAGC(bool enable) = 0;
+  virtual bool AGC() const = 0;
+
   // Audio mixer initialization
   virtual int32_t InitSpeaker() = 0;
   virtual bool SpeakerIsInitialized() const = 0;
@@ -122,8 +126,8 @@ class AudioDeviceGeneric {
   virtual int32_t EnableBuiltInAGC(bool enable);
   virtual int32_t EnableBuiltInNS(bool enable);
 
-// iOS only.
-// TODO(henrika): add Android support.
+  // iOS only.
+  // TODO(henrika): add Android support.
 #if defined(WEBRTC_IOS)
   virtual int GetPlayoutAudioParameters(AudioParameters* params) const;
   virtual int GetRecordAudioParameters(AudioParameters* params) const;

@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import javax.annotation.Nullable;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.junit.Before;
 import org.junit.Test;
@@ -52,7 +51,7 @@ public class DefaultVideoEncoderFactoryTest {
     }
 
     @Override
-    public @Nullable VideoEncoder createEncoder(VideoCodecInfo info) {
+    public VideoEncoder createEncoder(VideoCodecInfo info) {
       return null;
     }
 
@@ -64,7 +63,7 @@ public class DefaultVideoEncoderFactoryTest {
 
   @Before
   public void setUp() {
-    NativeLibrary.initialize(new NativeLibrary.DefaultLoader(), TestConstants.NATIVE_LIBRARY);
+    NativeLibrary.initialize(new NativeLibrary.DefaultLoader());
   }
 
   @SmallTest

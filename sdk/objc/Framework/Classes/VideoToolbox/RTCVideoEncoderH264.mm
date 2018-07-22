@@ -22,17 +22,18 @@
 #import "WebRTC/RTCVideoCodec.h"
 #import "WebRTC/RTCVideoFrame.h"
 #import "WebRTC/RTCVideoFrameBuffer.h"
+#import "helpers.h"
+#include "libyuv/convert_from.h"
 #include "common_video/h264/h264_bitstream_parser.h"
 #include "common_video/h264/profile_level_id.h"
 #include "common_video/include/bitrate_adjuster.h"
-#import "helpers.h"
 #include "modules/include/module_common_types.h"
 #include "modules/video_coding/include/video_error_codes.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/timeutils.h"
 #include "sdk/objc/Framework/Classes/VideoToolbox/nalu_rewriter.h"
-#include "third_party/libyuv/include/libyuv/convert_from.h"
+#include "system_wrappers/include/clock.h"
 
 @interface RTCVideoEncoderH264 ()
 
@@ -167,12 +168,12 @@ void compressionOutputCallback(void *encoder,
                                 rotation:encodeParams->rotation];
 }
 
-// Extract VideoToolbox profile out of the webrtc::SdpVideoFormat. If there is
-// no specific VideoToolbox profile for the specified level, AutoLevel will be
+// Extract VideoToolbox profile out of the cricket::VideoCodec. If there is no
+// specific VideoToolbox profile for the specified level, AutoLevel will be
 // returned. The user must initialize the encoder with a resolution and
 // framerate conforming to the selected H264 level regardless.
 CFStringRef ExtractProfile(webrtc::SdpVideoFormat videoFormat) {
-  const absl::optional<webrtc::H264::ProfileLevelId> profile_level_id =
+  const rtc::Optional<webrtc::H264::ProfileLevelId> profile_level_id =
       webrtc::H264::ParseSdpProfileLevelId(videoFormat.parameters);
   RTC_DCHECK(profile_level_id);
   switch (profile_level_id->profile) {
@@ -301,13 +302,14 @@ CFStringRef ExtractProfile(webrtc::SdpVideoFormat videoFormat) {
 - (instancetype)initWithCodecInfo:(RTCVideoCodecInfo *)codecInfo {
   if (self = [super init]) {
     _codecInfo = codecInfo;
-    _bitrateAdjuster.reset(new webrtc::BitrateAdjuster(.5, .95));
+    _bitrateAdjuster.reset(new webrtc::BitrateAdjuster(
+        webrtc::Clock::GetRealTimeClock(), .5, .95));
     _packetizationMode = RTCH264PacketizationModeNonInterleaved;
     _profile = ExtractProfile([codecInfo nativeSdpVideoFormat]);
     RTC_LOG(LS_INFO) << "Using profile " << CFStringToString(_profile);
     RTC_CHECK([codecInfo.name isEqualToString:kRTCVideoCodecH264Name]);
 
-#if defined(WEBRTC_IOS) && !defined(RTC_APPRTCMOBILE_BROADCAST_EXTENSION)
+#if defined(WEBRTC_IOS)
     [RTCUIApplicationStatusObserver prepareForUse];
 #endif
   }
@@ -328,7 +330,7 @@ CFStringRef ExtractProfile(webrtc::SdpVideoFormat videoFormat) {
   _mode = settings.mode;
 
   // We can only set average bitrate on the HW encoder.
-  _targetBitrateBps = settings.startBitrate * 1000;  // startBitrate is in kbps.
+  _targetBitrateBps = settings.startBitrate;
   _bitrateAdjuster->SetTargetBitrateBps(_targetBitrateBps);
 
   // TODO(tkchin): Try setting payload size via
@@ -338,14 +340,14 @@ CFStringRef ExtractProfile(webrtc::SdpVideoFormat videoFormat) {
 }
 
 - (NSInteger)encode:(RTCVideoFrame *)frame
-    codecSpecificInfo:(nullable id<RTCCodecSpecificInfo>)codecSpecificInfo
+    codecSpecificInfo:(id<RTCCodecSpecificInfo>)codecSpecificInfo
            frameTypes:(NSArray<NSNumber *> *)frameTypes {
   RTC_DCHECK_EQ(frame.width, _width);
   RTC_DCHECK_EQ(frame.height, _height);
   if (!_callback || !_compressionSession) {
     return WEBRTC_VIDEO_CODEC_UNINITIALIZED;
   }
-#if defined(WEBRTC_IOS) && !defined(RTC_APPRTCMOBILE_BROADCAST_EXTENSION)
+#if defined(WEBRTC_IOS)
   if (![[RTCUIApplicationStatusObserver sharedInstance] isApplicationActive]) {
     // Ignore all encode requests when app isn't active. In this state, the
     // hardware encoder has been invalidated by the OS.
@@ -390,7 +392,6 @@ CFStringRef ExtractProfile(webrtc::SdpVideoFormat videoFormat) {
       }
       _frameScaleBuffer.shrink_to_fit();
       if (![rtcPixelBuffer cropAndScaleTo:pixelBuffer withTempBuffer:_frameScaleBuffer.data()]) {
-        CVBufferRelease(pixelBuffer);
         return WEBRTC_VIDEO_CODEC_ERROR;
       }
     }
@@ -487,16 +488,6 @@ CFStringRef ExtractProfile(webrtc::SdpVideoFormat videoFormat) {
                                      withFrame:(RTCVideoFrame *)frame {
   BOOL resetCompressionSession = NO;
 
-  // If we're capturing native frames in another pixel format than the compression session is
-  // configured with, make sure the compression session is reset using the correct pixel format.
-  // If we're capturing non-native frames and the compression session is configured with a non-NV12
-  // format, reset it to NV12.
-  OSType framePixelFormat = kNV12PixelFormat;
-  if ([frame.buffer isKindOfClass:[RTCCVPixelBuffer class]]) {
-    RTCCVPixelBuffer *rtcPixelBuffer = (RTCCVPixelBuffer *)frame.buffer;
-    framePixelFormat = CVPixelBufferGetPixelFormatType(rtcPixelBuffer.pixelBuffer);
-  }
-
 #if defined(WEBRTC_IOS)
   if (!pixelBufferPool) {
     // Kind of a hack. On backgrounding, the compression session seems to get
@@ -509,7 +500,13 @@ CFStringRef ExtractProfile(webrtc::SdpVideoFormat videoFormat) {
   }
 #endif
 
-  if (pixelBufferPool) {
+  // If we're capturing native frames in another pixel format than the compression session is
+  // configured with, make sure the compression session is reset using the correct pixel format.
+  OSType framePixelFormat = kNV12PixelFormat;
+  if (pixelBufferPool && [frame.buffer isKindOfClass:[RTCCVPixelBuffer class]]) {
+    RTCCVPixelBuffer *rtcPixelBuffer = (RTCCVPixelBuffer *)frame.buffer;
+    framePixelFormat = CVPixelBufferGetPixelFormatType(rtcPixelBuffer.pixelBuffer);
+
     // The pool attribute `kCVPixelBufferPixelFormatTypeKey` can contain either an array of pixel
     // formats or a single pixel format.
     NSDictionary *poolAttributes =
@@ -677,7 +674,7 @@ CFStringRef ExtractProfile(webrtc::SdpVideoFormat videoFormat) {
       CFRelease(dataRateLimits);
     }
     if (status != noErr) {
-      RTC_LOG(LS_ERROR) << "Failed to set data rate limit with code: " << status;
+      RTC_LOG(LS_ERROR) << "Failed to set data rate limit";
     }
 
     _encoderBitrateBps = bitrateBps;
@@ -694,7 +691,7 @@ CFStringRef ExtractProfile(webrtc::SdpVideoFormat videoFormat) {
               timestamp:(uint32_t)timestamp
                rotation:(RTCVideoRotation)rotation {
   if (status != noErr) {
-    RTC_LOG(LS_ERROR) << "H264 encode failed with code: " << status;
+    RTC_LOG(LS_ERROR) << "H264 encode failed.";
     return;
   }
   if (infoFlags & kVTEncodeInfo_FrameDropped) {
@@ -739,7 +736,7 @@ CFStringRef ExtractProfile(webrtc::SdpVideoFormat videoFormat) {
   frame.rotation = rotation;
   frame.contentType = (_mode == RTCVideoCodecModeScreensharing) ? RTCVideoContentTypeScreenshare :
                                                                   RTCVideoContentTypeUnspecified;
-  frame.flags = webrtc::VideoSendTiming::kInvalid;
+  frame.flags = webrtc::TimingFrameFlags::kInvalid;
 
   int qp;
   _h264BitstreamParser.ParseBitstream(buffer->data(), buffer->size());

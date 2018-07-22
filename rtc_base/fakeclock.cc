@@ -31,10 +31,10 @@ void FakeClock::SetTimeNanos(int64_t nanos) {
   MessageQueueManager::ProcessAllMessageQueues();
 }
 
-void FakeClock::AdvanceTime(webrtc::TimeDelta delta) {
+void FakeClock::AdvanceTime(TimeDelta delta) {
   {
     CritScope cs(&lock_);
-    time_ += delta.ns();
+    time_ += delta.ToNanoseconds();
   }
   MessageQueueManager::ProcessAllMessageQueues();
 }

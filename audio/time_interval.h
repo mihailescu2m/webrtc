@@ -13,7 +13,7 @@
 
 #include <stdint.h>
 
-#include "absl/types/optional.h"
+#include "api/optional.h"
 
 namespace webrtc {
 
@@ -57,7 +57,7 @@ class TimeInterval {
 
     int64_t first, last;
   };
-  absl::optional<Interval> interval_;
+  rtc::Optional<Interval> interval_;
 };
 
 }  // namespace webrtc

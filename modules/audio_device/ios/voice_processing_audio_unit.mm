@@ -11,7 +11,6 @@
 #import "modules/audio_device/ios/voice_processing_audio_unit.h"
 
 #include "rtc_base/checks.h"
-#include "rtc_base/system/fallthrough.h"
 #include "system_wrappers/include/metrics.h"
 
 #import "WebRTC/RTCLogging.h"
@@ -445,12 +444,12 @@ void VoiceProcessingAudioUnit::DisposeAudioUnit() {
       case kStarted:
         Stop();
         // Fall through.
-        RTC_FALLTHROUGH();
+        FALLTHROUGH();
       case kInitialized:
         Uninitialize();
         break;
       case kUninitialized:
-        RTC_FALLTHROUGH();
+        FALLTHROUGH();
       case kInitRequired:
         break;
     }

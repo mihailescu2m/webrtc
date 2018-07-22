@@ -57,7 +57,7 @@ UnixFilesystem::UnixFilesystem() {}
 
 UnixFilesystem::~UnixFilesystem() {}
 
-bool UnixFilesystem::DeleteFile(const Pathname& filename) {
+bool UnixFilesystem::DeleteFile(const Pathname &filename) {
   RTC_LOG(LS_INFO) << "Deleting file:" << filename.pathname();
 
   if (!IsFile(filename)) {
@@ -67,8 +67,24 @@ bool UnixFilesystem::DeleteFile(const Pathname& filename) {
   return ::unlink(filename.pathname().c_str()) == 0;
 }
 
-bool UnixFilesystem::MoveFile(const Pathname& old_path,
-                              const Pathname& new_path) {
+std::string UnixFilesystem::TempFilename(const Pathname &dir,
+                                         const std::string &prefix) {
+  int len = dir.pathname().size() + prefix.size() + 2 + 6;
+  char *tempname = new char[len];
+
+  snprintf(tempname, len, "%s/%sXXXXXX", dir.pathname().c_str(),
+           prefix.c_str());
+  int fd = ::mkstemp(tempname);
+  if (fd != -1)
+    ::close(fd);
+  std::string ret(tempname);
+  delete[] tempname;
+
+  return ret;
+}
+
+bool UnixFilesystem::MoveFile(const Pathname &old_path,
+                              const Pathname &new_path) {
   if (!IsFile(old_path)) {
     RTC_DCHECK(IsFile(old_path));
     return false;
@@ -81,7 +97,7 @@ bool UnixFilesystem::MoveFile(const Pathname& old_path,
   return true;
 }
 
-bool UnixFilesystem::IsFolder(const Pathname& path) {
+bool UnixFilesystem::IsFolder(const Pathname &path) {
   struct stat st;
   if (stat(path.pathname().c_str(), &st) < 0)
     return false;
@@ -95,12 +111,24 @@ bool UnixFilesystem::IsFile(const Pathname& pathname) {
   return res == 0 && !S_ISDIR(st.st_mode);
 }
 
-bool UnixFilesystem::GetFileSize(const Pathname& pathname, size_t* size) {
+bool UnixFilesystem::GetFileSize(const Pathname& pathname, size_t *size) {
   struct stat st;
   if (::stat(pathname.pathname().c_str(), &st) != 0)
     return false;
   *size = st.st_size;
   return true;
+}
+
+char* UnixFilesystem::CopyString(const std::string& str) {
+  size_t size = str.length() + 1;
+
+  char* buf = new char[size];
+  if (!buf) {
+    return nullptr;
+  }
+
+  strcpyn(buf, size, str.c_str());
+  return buf;
 }
 
 }  // namespace rtc

@@ -10,8 +10,7 @@
 #ifndef MODULES_RTP_RTCP_SOURCE_RTCP_PACKET_COMMON_HEADER_H_
 #define MODULES_RTP_RTCP_SOURCE_RTCP_PACKET_COMMON_HEADER_H_
 
-#include <stddef.h>
-#include <stdint.h>
+#include "rtc_base/basictypes.h"
 
 namespace webrtc {
 namespace rtcp {
@@ -21,7 +20,7 @@ class CommonHeader {
 
   CommonHeader() {}
   CommonHeader(const CommonHeader&) = default;
-  CommonHeader& operator=(const CommonHeader&) = default;
+  CommonHeader& operator =(const CommonHeader&) = default;
 
   bool Parse(const uint8_t* buffer, size_t size_bytes);
 

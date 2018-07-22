@@ -8,6 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+
 /*
  * A wrapper for resampling a numerous amount of sampling combinations.
  */
@@ -35,11 +36,8 @@ class Resampler {
   int ResetIfNeeded(int inFreq, int outFreq, size_t num_channels);
 
   // Resample samplesIn to samplesOut.
-  int Push(const int16_t* samplesIn,
-           size_t lengthIn,
-           int16_t* samplesOut,
-           size_t maxLen,
-           size_t& outLen);  // NOLINT: to avoid changing APIs
+  int Push(const int16_t* samplesIn, size_t lengthIn, int16_t* samplesOut,
+           size_t maxLen, size_t& outLen);  // NOLINT: to avoid changing APIs
 
  private:
   enum ResamplerMode {

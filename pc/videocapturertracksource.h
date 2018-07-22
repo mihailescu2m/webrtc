@@ -48,9 +48,7 @@ class VideoCapturerTrackSource : public VideoTrackSource,
       bool remote);
 
   bool is_screencast() const final { return video_capturer_->IsScreencast(); }
-  absl::optional<bool> needs_denoising() const final {
-    return needs_denoising_;
-  }
+  rtc::Optional<bool> needs_denoising() const final { return needs_denoising_; }
 
   bool GetStats(Stats* stats) final;
 
@@ -59,11 +57,6 @@ class VideoCapturerTrackSource : public VideoTrackSource,
                            std::unique_ptr<cricket::VideoCapturer> capturer,
                            bool remote);
   virtual ~VideoCapturerTrackSource();
-
-  rtc::VideoSourceInterface<VideoFrame>* source() override {
-    return video_capturer_.get();
-  }
-
   void Initialize(const webrtc::MediaConstraintsInterface* constraints);
 
  private:
@@ -78,7 +71,7 @@ class VideoCapturerTrackSource : public VideoTrackSource,
   std::unique_ptr<cricket::VideoCapturer> video_capturer_;
   bool started_;
   cricket::VideoFormat format_;
-  absl::optional<bool> needs_denoising_;
+  rtc::Optional<bool> needs_denoising_;
 };
 
 }  // namespace webrtc

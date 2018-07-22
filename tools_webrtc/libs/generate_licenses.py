@@ -22,18 +22,14 @@ import subprocess
 
 
 LIB_TO_LICENSES_DICT = {
-    'abseil-cpp': ['third_party/abseil-cpp/LICENSE'],
     'android_tools': ['third_party/android_tools/LICENSE'],
     'auto': ['third_party/auto/src/LICENSE.txt'],
-    'bazel': ['third_party/bazel/LICENSE'],
     'boringssl': ['third_party/boringssl/src/LICENSE'],
     'errorprone': ['third_party/errorprone/LICENSE'],
     'expat': ['third_party/expat/files/COPYING'],
-    'fiat': ['third_party/boringssl/src/third_party/fiat/LICENSE'],
     'guava': ['third_party/guava/LICENSE'],
     'ijar': ['third_party/ijar/LICENSE'],
     'jsoncpp': ['third_party/jsoncpp/LICENSE'],
-    'jsr-305': ['third_party/jsr-305/src/ri/LICENSE'],
     'libc++': ['buildtools/third_party/libc++/trunk/LICENSE.TXT'],
     'libc++abi': ['buildtools/third_party/libc++abi/trunk/LICENSE.TXT'],
     'libevent': ['base/third_party/libevent/LICENSE'],
@@ -41,16 +37,15 @@ LIB_TO_LICENSES_DICT = {
     'libsrtp': ['third_party/libsrtp/LICENSE'],
     'libvpx': ['third_party/libvpx/source/libvpx/LICENSE'],
     'libyuv': ['third_party/libyuv/LICENSE'],
+    'openmax_dl': ['third_party/openmax_dl/LICENSE'],
     'opus': ['third_party/opus/src/COPYING'],
     'protobuf': ['third_party/protobuf/LICENSE'],
-    'rnnoise': ['third_party/rnnoise/COPYING'],
     'usrsctp': ['third_party/usrsctp/LICENSE'],
     'webrtc': ['LICENSE', 'LICENSE_THIRD_PARTY'],
-    'zlib': ['third_party/zlib/LICENSE'],
+    'zlib': ['LICENSE', 'third_party/zlib/LICENSE'],
 
     # Compile time dependencies, no license needed:
     'yasm': [],
-    'ow2_asm': [],
 }
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
@@ -58,7 +53,7 @@ CHECKOUT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, os.pardir, os.pardir))
 sys.path.append(os.path.join(CHECKOUT_ROOT, 'build'))
 import find_depot_tools
 
-THIRD_PARTY_LIB_REGEX = r'^.*/third_party/([\w\-+]+).*$'
+THIRD_PARTY_LIB_REGEX = r'^.*/third_party/([\w+]+).*$'
 
 class LicenseBuilder(object):
 

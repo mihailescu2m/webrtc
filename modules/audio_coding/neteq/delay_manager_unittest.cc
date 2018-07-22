@@ -49,7 +49,8 @@ DelayManagerTest::DelayManagerTest()
     : dm_(NULL), detector_(&tick_timer_), seq_no_(0x1234), ts_(0x12345678) {}
 
 void DelayManagerTest::SetUp() {
-  EXPECT_CALL(detector_, Reset()).Times(1);
+  EXPECT_CALL(detector_, Reset())
+            .Times(1);
   dm_ = new DelayManager(kMaxNumberOfPackets, &detector_, &tick_timer_);
 }
 
@@ -93,7 +94,8 @@ TEST_F(DelayManagerTest, VectorInitialization) {
 TEST_F(DelayManagerTest, SetPacketAudioLength) {
   const int kLengthMs = 30;
   // Expect DelayManager to pass on the new length to the detector object.
-  EXPECT_CALL(detector_, SetPacketAudioLength(kLengthMs)).Times(1);
+  EXPECT_CALL(detector_, SetPacketAudioLength(kLengthMs))
+      .Times(1);
   EXPECT_EQ(0, dm_->SetPacketAudioLength(kLengthMs));
   EXPECT_EQ(-1, dm_->SetPacketAudioLength(-1));  // Illegal parameter value.
 }
@@ -119,7 +121,8 @@ TEST_F(DelayManagerTest, UpdateNormal) {
   // Expect detector update method to be called once with inter-arrival time
   // equal to 1 packet, and (base) target level equal to 1 as well.
   // Return false to indicate no peaks found.
-  EXPECT_CALL(detector_, Update(1, 1)).WillOnce(Return(false));
+  EXPECT_CALL(detector_, Update(1, 1))
+      .WillOnce(Return(false));
   InsertNextPacket();
   EXPECT_EQ(1 << 8, dm_->TargetLevel());  // In Q8.
   EXPECT_EQ(1, dm_->base_target_level());
@@ -142,7 +145,8 @@ TEST_F(DelayManagerTest, UpdateLongInterArrivalTime) {
   // Expect detector update method to be called once with inter-arrival time
   // equal to 1 packet, and (base) target level equal to 1 as well.
   // Return false to indicate no peaks found.
-  EXPECT_CALL(detector_, Update(2, 2)).WillOnce(Return(false));
+  EXPECT_CALL(detector_, Update(2, 2))
+      .WillOnce(Return(false));
   InsertNextPacket();
   EXPECT_EQ(2 << 8, dm_->TargetLevel());  // In Q8.
   EXPECT_EQ(2, dm_->base_target_level());
@@ -165,8 +169,10 @@ TEST_F(DelayManagerTest, UpdatePeakFound) {
   // Expect detector update method to be called once with inter-arrival time
   // equal to 1 packet, and (base) target level equal to 1 as well.
   // Return true to indicate that peaks are found. Let the peak height be 5.
-  EXPECT_CALL(detector_, Update(1, 1)).WillOnce(Return(true));
-  EXPECT_CALL(detector_, MaxPeakHeight()).WillOnce(Return(5));
+  EXPECT_CALL(detector_, Update(1, 1))
+      .WillOnce(Return(true));
+  EXPECT_CALL(detector_, MaxPeakHeight())
+      .WillOnce(Return(5));
   InsertNextPacket();
   EXPECT_EQ(5 << 8, dm_->TargetLevel());
   EXPECT_EQ(1, dm_->base_target_level());  // Base target level is w/o peaks.
@@ -187,7 +193,8 @@ TEST_F(DelayManagerTest, TargetDelay) {
   // Expect detector update method to be called once with inter-arrival time
   // equal to 1 packet, and (base) target level equal to 1 as well.
   // Return false to indicate no peaks found.
-  EXPECT_CALL(detector_, Update(1, 1)).WillOnce(Return(false));
+  EXPECT_CALL(detector_, Update(1, 1))
+      .WillOnce(Return(false));
   InsertNextPacket();
   const int kExpectedTarget = 1;
   EXPECT_EQ(kExpectedTarget << 8, dm_->TargetLevel());  // In Q8.
@@ -404,39 +411,4 @@ TEST(DelayManagerIATScalingTest, CompressionTest) {
   EXPECT_EQ(compressed_iat, expected_result);
 }
 
-// Test if the histogram scaling function handles overflows correctly.
-TEST(DelayManagerIATScalingTest, OverflowTest) {
-  using IATVector = DelayManager::IATVector;
-  // Test a compression operation that can cause overflow.
-  IATVector iat = {733544448, 0, 0, 0, 0, 0, 0, 340197376, 0, 0, 0, 0, 0, 0};
-  IATVector expected_result = {733544448, 340197376, 0, 0, 0, 0, 0,
-                               0,         0,         0, 0, 0, 0, 0};
-  IATVector scaled_iat = DelayManager::ScaleHistogram(iat, 10, 60);
-  EXPECT_EQ(scaled_iat, expected_result);
-
-  iat = {655591163, 39962288, 360736736, 1930514, 4003853, 1782764,
-         114119,    2072996,  0,         2149354, 0};
-  expected_result = {1056290187, 7717131, 2187115, 2149354, 0, 0,
-                     0,          0,       0,       0,       0};
-  scaled_iat = DelayManager::ScaleHistogram(iat, 20, 60);
-  EXPECT_EQ(scaled_iat, expected_result);
-
-  // In this test case we will not be able to add everything to the final bin in
-  // the scaled histogram. Check that the last bin doesn't overflow.
-  iat = {2000000000, 2000000000, 2000000000,
-         2000000000, 2000000000, 2000000000};
-  expected_result = {666666666, 666666666, 666666666,
-                     666666667, 666666667, 2147483647};
-  scaled_iat = DelayManager::ScaleHistogram(iat, 60, 20);
-  EXPECT_EQ(scaled_iat, expected_result);
-
-  // In this test case we will not be able to add enough to each of the bins,
-  // so the values should be smeared out past the end of the normal range.
-  iat = {2000000000, 2000000000, 2000000000,
-         2000000000, 2000000000, 2000000000};
-  expected_result = {2147483647, 2147483647, 2147483647,
-                     2147483647, 2147483647, 1262581765};
-  scaled_iat = DelayManager::ScaleHistogram(iat, 20, 60);
-  EXPECT_EQ(scaled_iat, expected_result);
-}
 }  // namespace webrtc

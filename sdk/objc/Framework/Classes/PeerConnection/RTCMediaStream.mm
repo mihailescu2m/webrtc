@@ -19,7 +19,6 @@
 #import "RTCVideoTrack+Private.h"
 
 @implementation RTCMediaStream {
-  RTCPeerConnectionFactory *_factory;
   NSMutableArray *_audioTracks;
   NSMutableArray *_videoTracks;
   rtc::scoped_refptr<webrtc::MediaStreamInterface> _nativeMediaStream;
@@ -32,7 +31,7 @@
   std::string nativeId = [NSString stdStringForString:streamId];
   rtc::scoped_refptr<webrtc::MediaStreamInterface> stream =
       factory.nativeFactory->CreateLocalMediaStream(nativeId);
-  return [self initWithFactory:factory nativeMediaStream:stream];
+  return [self initWithNativeMediaStream:stream];
 }
 
 - (NSArray<RTCAudioTrack *> *)audioTracks {
@@ -44,7 +43,7 @@
 }
 
 - (NSString *)streamId {
-  return [NSString stringForStdString:_nativeMediaStream->id()];
+  return [NSString stringForStdString:_nativeMediaStream->label()];
 }
 
 - (void)addAudioTrack:(RTCAudioTrack *)audioTrack {
@@ -92,13 +91,10 @@
   return _nativeMediaStream;
 }
 
-- (instancetype)initWithFactory:(RTCPeerConnectionFactory *)factory
-              nativeMediaStream:
-                  (rtc::scoped_refptr<webrtc::MediaStreamInterface>)nativeMediaStream {
+- (instancetype)initWithNativeMediaStream:
+    (rtc::scoped_refptr<webrtc::MediaStreamInterface>)nativeMediaStream {
   NSParameterAssert(nativeMediaStream);
   if (self = [super init]) {
-    _factory = factory;
-
     webrtc::AudioTrackVector audioTracks = nativeMediaStream->GetAudioTracks();
     webrtc::VideoTrackVector videoTracks = nativeMediaStream->GetVideoTracks();
 
@@ -109,14 +105,14 @@
     for (auto &track : audioTracks) {
       RTCMediaStreamTrackType type = RTCMediaStreamTrackTypeAudio;
       RTCAudioTrack *audioTrack =
-          [[RTCAudioTrack alloc] initWithFactory:_factory nativeTrack:track type:type];
+          [[RTCAudioTrack alloc] initWithNativeTrack:track type:type];
       [_audioTracks addObject:audioTrack];
     }
 
     for (auto &track : videoTracks) {
       RTCMediaStreamTrackType type = RTCMediaStreamTrackTypeVideo;
       RTCVideoTrack *videoTrack =
-          [[RTCVideoTrack alloc] initWithFactory:_factory nativeTrack:track type:type];
+          [[RTCVideoTrack alloc] initWithNativeTrack:track type:type];
       [_videoTracks addObject:videoTrack];
     }
   }

@@ -11,8 +11,6 @@
 #ifndef LOGGING_RTC_EVENT_LOG_EVENTS_RTC_EVENT_RTP_PACKET_OUTGOING_H_
 #define LOGGING_RTC_EVENT_LOG_EVENTS_RTC_EVENT_RTP_PACKET_OUTGOING_H_
 
-#include <memory>
-
 #include "logging/rtc_event_log/events/rtc_event.h"
 #include "modules/rtp_rtcp/source/rtp_packet.h"
 
@@ -30,14 +28,9 @@ class RtcEventRtpPacketOutgoing final : public RtcEvent {
 
   bool IsConfigEvent() const override;
 
-  std::unique_ptr<RtcEvent> Copy() const override;
-
   RtpPacket header_;            // Only the packet's header will be stored here.
   const size_t packet_length_;  // Length before stripping away all but header.
   const int probe_cluster_id_;
-
- private:
-  RtcEventRtpPacketOutgoing(const RtcEventRtpPacketOutgoing& other);
 };
 
 }  // namespace webrtc

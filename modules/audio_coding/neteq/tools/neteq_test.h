@@ -82,16 +82,13 @@ class NetEqTest {
             std::unique_ptr<AudioSink> output,
             Callbacks callbacks);
 
-  ~NetEqTest();
+  ~NetEqTest() = default;
 
   // Runs the test. Returns the duration of the produced audio in ms.
   int64_t Run();
 
   // Returns the statistics from NetEq.
   NetEqNetworkStatistics SimulationStats();
-  NetEqLifetimeStatistics LifetimeStats() const;
-
-  static DecoderMap StandardDecoderMap();
 
  private:
   void RegisterDecoders(const DecoderMap& codecs);

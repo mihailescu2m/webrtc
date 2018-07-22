@@ -14,7 +14,6 @@
 
 #include <utility>
 
-#include "absl/memory/memory.h"
 #include "common_types.h"  // NOLINT(build/include)
 #include "logging/rtc_event_log/events/rtc_event_rtcp_packet_outgoing.h"
 #include "logging/rtc_event_log/rtc_event_log.h"
@@ -38,7 +37,7 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/constructormagic.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/numerics/safe_conversions.h"
+#include "rtc_base/ptr_util.h"
 #include "rtc_base/trace_event.h"
 
 namespace webrtc {
@@ -49,6 +48,35 @@ const uint32_t kRtcpAnyExtendedReports =
     kRtcpXrTargetBitrate;
 }  // namespace
 
+NACKStringBuilder::NACKStringBuilder()
+    : stream_(""), count_(0), prevNack_(0), consecutive_(false) {}
+
+NACKStringBuilder::~NACKStringBuilder() {}
+
+void NACKStringBuilder::PushNACK(uint16_t nack) {
+  if (count_ == 0) {
+    stream_ << nack;
+  } else if (nack == prevNack_ + 1) {
+    consecutive_ = true;
+  } else {
+    if (consecutive_) {
+      stream_ << "-" << prevNack_;
+      consecutive_ = false;
+    }
+    stream_ << "," << nack;
+  }
+  count_++;
+  prevNack_ = nack;
+}
+
+std::string NACKStringBuilder::GetResult() {
+  if (consecutive_) {
+    stream_ << "-" << prevNack_;
+    consecutive_ = false;
+  }
+  return stream_.str();
+}
+
 RTCPSender::FeedbackState::FeedbackState()
     : packets_sent(0),
       media_bytes_sent(0),
@@ -56,40 +84,40 @@ RTCPSender::FeedbackState::FeedbackState()
       last_rr_ntp_secs(0),
       last_rr_ntp_frac(0),
       remote_sr(0),
+      has_last_xr_rr(false),
       module(nullptr) {}
 
-RTCPSender::FeedbackState::FeedbackState(const FeedbackState&) = default;
-
-RTCPSender::FeedbackState::FeedbackState(FeedbackState&&) = default;
-
-RTCPSender::FeedbackState::~FeedbackState() = default;
-
-class PacketContainer : public rtcp::CompoundPacket {
+class PacketContainer : public rtcp::CompoundPacket,
+                        public rtcp::RtcpPacket::PacketReadyCallback {
  public:
   PacketContainer(Transport* transport, RtcEventLog* event_log)
-      : transport_(transport), event_log_(event_log) {}
-  ~PacketContainer() override {
+      : transport_(transport), event_log_(event_log), bytes_sent_(0) {}
+  virtual ~PacketContainer() {
     for (RtcpPacket* packet : appended_packets_)
       delete packet;
   }
 
-  size_t SendPackets(size_t max_payload_length) {
-    size_t bytes_sent = 0;
-    Build(max_payload_length, [&](rtc::ArrayView<const uint8_t> packet) {
-      if (transport_->SendRtcp(packet.data(), packet.size())) {
-        bytes_sent += packet.size();
-        if (event_log_) {
-          event_log_->Log(
-              absl::make_unique<RtcEventRtcpPacketOutgoing>(packet));
-        }
+  void OnPacketReady(uint8_t* data, size_t length) override {
+    if (transport_->SendRtcp(data, length)) {
+      bytes_sent_ += length;
+      if (event_log_) {
+        event_log_->Log(rtc::MakeUnique<RtcEventRtcpPacketOutgoing>(
+            rtc::ArrayView<const uint8_t>(data, length)));
       }
-    });
-    return bytes_sent;
+    }
+  }
+
+  size_t SendPackets(size_t max_payload_length) {
+    RTC_DCHECK_LE(max_payload_length, IP_PACKET_SIZE);
+    uint8_t buffer[IP_PACKET_SIZE];
+    BuildExternalBuffer(buffer, max_payload_length, this);
+    return bytes_sent_;
   }
 
  private:
   Transport* transport_;
   RtcEventLog* const event_log_;
+  size_t bytes_sent_;
 
   RTC_DISALLOW_IMPLICIT_CONSTRUCTORS(PacketContainer);
 };
@@ -117,15 +145,13 @@ RTCPSender::RTCPSender(
     ReceiveStatisticsProvider* receive_statistics,
     RtcpPacketTypeCounterObserver* packet_type_counter_observer,
     RtcEventLog* event_log,
-    Transport* outgoing_transport,
-    RtcpIntervalConfig interval_config)
+    Transport* outgoing_transport)
     : audio_(audio),
       clock_(clock),
       random_(clock_->TimeInMicroseconds()),
       method_(RtcpMode::kOff),
       event_log_(event_log),
       transport_(outgoing_transport),
-      interval_config_(interval_config),
       using_nack_(false),
       sending_(false),
       next_time_to_send_rtcp_(0),
@@ -179,9 +205,9 @@ void RTCPSender::SetRTCPStatus(RtcpMode new_method) {
 
   if (method_ == RtcpMode::kOff && new_method != RtcpMode::kOff) {
     // When switching on, reschedule the next packet
-    int64_t interval_ms = audio_ ? interval_config_.audio_interval_ms
-                                 : interval_config_.video_interval_ms;
-    next_time_to_send_rtcp_ = clock_->TimeInMilliseconds() + (interval_ms / 2);
+    next_time_to_send_rtcp_ =
+      clock_->TimeInMilliseconds() +
+      (audio_ ? RTCP_INTERVAL_AUDIO_MS / 2 : RTCP_INTERVAL_VIDEO_MS / 2);
   }
   method_ = new_method;
 }
@@ -210,11 +236,10 @@ int32_t RTCPSender::SetSendingStatus(const FeedbackState& feedback_state,
   return 0;
 }
 
-void RTCPSender::SetRemb(int64_t bitrate_bps, std::vector<uint32_t> ssrcs) {
-  RTC_CHECK_GE(bitrate_bps, 0);
+void RTCPSender::SetRemb(uint32_t bitrate, const std::vector<uint32_t>& ssrcs) {
   rtc::CritScope lock(&critical_section_rtcp_sender_);
-  remb_bitrate_ = bitrate_bps;
-  remb_ssrcs_ = std::move(ssrcs);
+  remb_bitrate_ = bitrate;
+  remb_ssrcs_ = ssrcs;
 
   SetFlag(kRtcpRemb, /*is_volatile=*/false);
   // Send a REMB immediately if we have a new REMB. The frequency of REMBs is
@@ -323,11 +348,11 @@ int32_t RTCPSender::RemoveMixedCNAME(uint32_t SSRC) {
 
 bool RTCPSender::TimeToSendRTCPReport(bool sendKeyframeBeforeRTP) const {
   /*
-      For audio we use a configurable interval (default: 5 seconds)
+      For audio we use a fix 5 sec interval
 
-      For video we use a configurable interval (default: 1 second) for a BW
-          smaller than 360 kbit/s, technicaly we break the max 5% RTCP BW for
-          video below 10 kbit/s but that should be extremely rare
+      For video we use 1 sec interval fo a BW smaller than 360 kbit/s,
+          technicaly we break the max 5% RTCP BW for video below 10 kbit/s but
+          that should be extremely rare
 
 
   From RFC 3550
@@ -341,8 +366,8 @@ bool RTCPSender::TimeToSendRTCPReport(bool sendKeyframeBeforeRTP) const {
         is smaller than 5 seconds for bandwidths greater than 72 kb/s.
 
       If the participant has not yet sent an RTCP packet (the variable
-        initial is true), the constant Tmin is set to half of the configured
-        interval.
+        initial is true), the constant Tmin is set to 2.5 seconds, else it
+        is set to 5 seconds.
 
       The interval between RTCP packets is varied randomly over the
         range [0.5,1.5] times the calculated interval to avoid unintended
@@ -454,7 +479,11 @@ std::unique_ptr<rtcp::RtcpPacket> RTCPSender::BuildPLI(const RtcpContext& ctx) {
   pli->SetSenderSsrc(ssrc_);
   pli->SetMediaSsrc(remote_ssrc_);
 
+  TRACE_EVENT_INSTANT0(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"),
+                       "RTCPSender::PLI");
   ++packet_type_counter_.pli_packets;
+  TRACE_COUNTER_ID1(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"), "RTCP_PLICount",
+                    ssrc_, packet_type_counter_.pli_packets);
 
   return std::unique_ptr<rtcp::RtcpPacket>(pli);
 }
@@ -466,7 +495,11 @@ std::unique_ptr<rtcp::RtcpPacket> RTCPSender::BuildFIR(const RtcpContext& ctx) {
   fir->SetSenderSsrc(ssrc_);
   fir->AddRequestTo(remote_ssrc_, sequence_number_fir_);
 
+  TRACE_EVENT_INSTANT0(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"),
+                       "RTCPSender::FIR");
   ++packet_type_counter_.fir_packets;
+  TRACE_COUNTER_ID1(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"), "RTCP_FIRCount",
+                    ssrc_, packet_type_counter_.fir_packets);
 
   return std::unique_ptr<rtcp::RtcpPacket>(fir);
 }
@@ -477,6 +510,9 @@ std::unique_ptr<rtcp::RtcpPacket> RTCPSender::BuildREMB(
   remb->SetSenderSsrc(ssrc_);
   remb->SetBitrateBps(remb_bitrate_);
   remb->SetSsrcs(remb_ssrcs_);
+
+  TRACE_EVENT_INSTANT0(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"),
+                       "RTCPSender::REMB");
 
   return std::unique_ptr<rtcp::RtcpPacket>(remb);
 }
@@ -573,13 +609,20 @@ std::unique_ptr<rtcp::RtcpPacket> RTCPSender::BuildNACK(
   nack->SetPacketIds(ctx.nack_list_, ctx.nack_size_);
 
   // Report stats.
+  NACKStringBuilder stringBuilder;
   for (int idx = 0; idx < ctx.nack_size_; ++idx) {
+    stringBuilder.PushNACK(ctx.nack_list_[idx]);
     nack_stats_.ReportRequest(ctx.nack_list_[idx]);
   }
   packet_type_counter_.nack_requests = nack_stats_.requests();
   packet_type_counter_.unique_nack_requests = nack_stats_.unique_requests();
 
+  TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"),
+                       "RTCPSender::NACK", "nacks",
+                       TRACE_STR_COPY(stringBuilder.GetResult().c_str()));
   ++packet_type_counter_.nack_packets;
+  TRACE_COUNTER_ID1(TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"), "RTCP_NACKCount",
+                    ssrc_, packet_type_counter_.nack_packets);
 
   return std::unique_ptr<rtcp::RtcpPacket>(nack);
 }
@@ -603,8 +646,8 @@ std::unique_ptr<rtcp::RtcpPacket> RTCPSender::BuildExtendedReports(
     xr->SetRrtr(rrtr);
   }
 
-  for (const rtcp::ReceiveTimeInfo& rti : ctx.feedback_state_.last_xr_rtis) {
-    xr->AddDlrrItem(rti);
+  if (ctx.feedback_state_.has_last_xr_rr) {
+    xr->AddDlrrItem(ctx.feedback_state_.last_xr_rr);
   }
 
   if (video_bitrate_allocation_) {
@@ -750,13 +793,12 @@ void RTCPSender::PrepareReport(const FeedbackState& feedback_state) {
 
   if (generate_report) {
     if ((!sending_ && xr_send_receiver_reference_time_enabled_) ||
-        !feedback_state.last_xr_rtis.empty() || video_bitrate_allocation_) {
+        feedback_state.has_last_xr_rr || video_bitrate_allocation_) {
       SetFlag(kRtcpAnyExtendedReports, true);
     }
 
     // generate next time to send an RTCP report
-    uint32_t minIntervalMs =
-        rtc::dchecked_cast<uint32_t>(interval_config_.audio_interval_ms);
+    uint32_t minIntervalMs = RTCP_INTERVAL_AUDIO_MS;
 
     if (!audio_) {
       if (sending_) {
@@ -765,13 +807,9 @@ void RTCPSender::PrepareReport(const FeedbackState& feedback_state) {
         if (send_bitrate_kbit != 0)
           minIntervalMs = 360000 / send_bitrate_kbit;
       }
-      if (minIntervalMs >
-          rtc::dchecked_cast<uint32_t>(interval_config_.video_interval_ms)) {
-        minIntervalMs =
-            rtc::dchecked_cast<uint32_t>(interval_config_.video_interval_ms);
-      }
+      if (minIntervalMs > RTCP_INTERVAL_VIDEO_MS)
+        minIntervalMs = RTCP_INTERVAL_VIDEO_MS;
     }
-
     // The interval between RTCP packets is varied randomly over the
     // range [1/2,3/2] times the calculated interval.
     uint32_t timeToNext =
@@ -901,14 +939,37 @@ bool RTCPSender::AllVolatileFlagsConsumed() const {
   return true;
 }
 
-void RTCPSender::SetVideoBitrateAllocation(
-    const VideoBitrateAllocation& bitrate) {
+void RTCPSender::SetVideoBitrateAllocation(const BitrateAllocation& bitrate) {
   rtc::CritScope lock(&critical_section_rtcp_sender_);
   video_bitrate_allocation_.emplace(bitrate);
   SetFlag(kRtcpAnyExtendedReports, true);
 }
 
 bool RTCPSender::SendFeedbackPacket(const rtcp::TransportFeedback& packet) {
+  class Sender : public rtcp::RtcpPacket::PacketReadyCallback {
+   public:
+    Sender(Transport* transport, RtcEventLog* event_log)
+        : transport_(transport), event_log_(event_log), send_failure_(false) {}
+
+    void OnPacketReady(uint8_t* data, size_t length) override {
+      if (transport_->SendRtcp(data, length)) {
+        if (event_log_) {
+          event_log_->Log(rtc::MakeUnique<RtcEventRtcpPacketOutgoing>(
+              rtc::ArrayView<const uint8_t>(data, length)));
+        }
+      } else {
+        send_failure_ = true;
+      }
+    }
+
+    Transport* const transport_;
+    RtcEventLog* const event_log_;
+    bool send_failure_;
+    // TODO(terelius): We would like to
+    // RTC_DISALLOW_IMPLICIT_CONSTRUCTORS(Sender);
+    // but we can't because of an incorrect warning (C4822) in MVS 2013.
+  } sender(transport_, event_log_);
+
   size_t max_packet_size;
   {
     rtc::CritScope lock(&critical_section_rtcp_sender_);
@@ -918,24 +979,9 @@ bool RTCPSender::SendFeedbackPacket(const rtcp::TransportFeedback& packet) {
   }
 
   RTC_DCHECK_LE(max_packet_size, IP_PACKET_SIZE);
-  bool send_failure = false;
-  auto callback = [&](rtc::ArrayView<const uint8_t> packet) {
-    if (transport_->SendRtcp(packet.data(), packet.size())) {
-      if (event_log_)
-        event_log_->Log(absl::make_unique<RtcEventRtcpPacketOutgoing>(packet));
-    } else {
-      send_failure = true;
-    }
-  };
-  return packet.Build(max_packet_size, callback) && !send_failure;
-}
-
-int64_t RTCPSender::RtcpAudioReportInverval() const {
-  return interval_config_.audio_interval_ms;
-}
-
-int64_t RTCPSender::RtcpVideoReportInverval() const {
-  return interval_config_.video_interval_ms;
+  uint8_t buffer[IP_PACKET_SIZE];
+  return packet.BuildExternalBuffer(buffer, max_packet_size, &sender) &&
+         !sender.send_failure_;
 }
 
 }  // namespace webrtc

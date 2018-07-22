@@ -24,20 +24,10 @@ struct LifeTimeCheck;
 
 struct MethodBindTester {
   void NullaryVoid() { ++call_count; }
-  int NullaryInt() {
-    ++call_count;
-    return 1;
-  }
-  int NullaryConst() const {
-    ++call_count;
-    return 2;
-  }
+  int NullaryInt() { ++call_count; return 1; }
+  int NullaryConst() const { ++call_count; return 2; }
   void UnaryVoid(int dummy) { ++call_count; }
-  template <class T>
-  T Identity(T value) {
-    ++call_count;
-    return value;
-  }
+  template <class T> T Identity(T value) { ++call_count; return value; }
   int UnaryByPointer(int* value) const {
     ++call_count;
     return ++(*value);
@@ -46,10 +36,7 @@ struct MethodBindTester {
     ++call_count;
     return ++const_cast<int&>(value);
   }
-  int Multiply(int a, int b) const {
-    ++call_count;
-    return a * b;
-  }
+  int Multiply(int a, int b) const { ++call_count; return a * b; }
   void RefArgument(const scoped_refptr<LifeTimeCheck>& object) {
     EXPECT_TRUE(object.get() != nullptr);
   }
@@ -57,17 +44,13 @@ struct MethodBindTester {
   mutable int call_count;
 };
 
-struct A {
-  int dummy;
-};
-struct B : public RefCountInterface {
-  int dummy;
-};
-struct C : public A, B {};
+struct A { int dummy; };
+struct B: public RefCountInterface { int dummy; };
+struct C: public A, B {};
 struct D {
   int AddRef();
 };
-struct E : public D {
+struct E: public D {
   int Release();
 };
 struct F {
@@ -83,15 +66,9 @@ struct LifeTimeCheck {
   int ref_count_;
 };
 
-int Return42() {
-  return 42;
-}
-int Negate(int a) {
-  return -a;
-}
-int Multiply(int a, int b) {
-  return a * b;
-}
+int Return42() { return 42; }
+int Negate(int a) { return -a; }
+int Multiply(int a, int b) { return a * b; }
 
 }  // namespace
 
@@ -99,8 +76,7 @@ int Multiply(int a, int b) {
 // compile time.
 #define EXPECT_IS_CAPTURED_AS_PTR(T)                              \
   static_assert(is_same<detail::PointerType<T>::type, T*>::value, \
-                "PointerTyp"                                      \
-                "e")
+                "PointerType")
 #define EXPECT_IS_CAPTURED_AS_SCOPED_REFPTR(T)                        \
   static_assert(                                                      \
       is_same<detail::PointerType<T>::type, scoped_refptr<T>>::value, \
@@ -230,9 +206,7 @@ TEST(BindTest, ScopedRefPointerArgument) {
 
 namespace {
 
-const int* Ref(const int& a) {
-  return &a;
-}
+const int* Ref(const int& a) { return &a; }
 
 }  // anonymous namespace
 

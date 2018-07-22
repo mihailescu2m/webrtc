@@ -11,8 +11,6 @@
 #ifndef LOGGING_RTC_EVENT_LOG_EVENTS_RTC_EVENT_PROBE_RESULT_FAILURE_H_
 #define LOGGING_RTC_EVENT_LOG_EVENTS_RTC_EVENT_PROBE_RESULT_FAILURE_H_
 
-#include <memory>
-
 #include "logging/rtc_event_log/events/rtc_event.h"
 
 namespace webrtc {
@@ -26,20 +24,15 @@ enum class ProbeFailureReason {
 
 class RtcEventProbeResultFailure final : public RtcEvent {
  public:
-  RtcEventProbeResultFailure(int32_t id, ProbeFailureReason failure_reason);
+  RtcEventProbeResultFailure(int id, ProbeFailureReason failure_reason);
   ~RtcEventProbeResultFailure() override = default;
 
   Type GetType() const override;
 
   bool IsConfigEvent() const override;
 
-  std::unique_ptr<RtcEvent> Copy() const override;
-
-  const int32_t id_;
+  const int id_;
   const ProbeFailureReason failure_reason_;
-
- private:
-  RtcEventProbeResultFailure(const RtcEventProbeResultFailure& other);
 };
 
 }  // namespace webrtc

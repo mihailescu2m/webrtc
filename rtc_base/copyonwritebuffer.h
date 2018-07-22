@@ -31,9 +31,6 @@ class CopyOnWriteBuffer {
   // Move contents from an existing buffer.
   CopyOnWriteBuffer(CopyOnWriteBuffer&& buf);
 
-  // Construct a buffer from a string, convenient for unittests.
-  CopyOnWriteBuffer(const std::string& s);
-
   // Construct a buffer with the specified number of uninitialized bytes.
   explicit CopyOnWriteBuffer(size_t size);
   CopyOnWriteBuffer(size_t size, size_t capacity);
@@ -188,8 +185,8 @@ class CopyOnWriteBuffer {
       return;
     }
 
-    CloneDataIfReferenced(
-        std::max(buffer_->capacity(), buffer_->size() + size));
+    CloneDataIfReferenced(std::max(buffer_->capacity(),
+        buffer_->size() + size));
     buffer_->AppendData(data, size);
     RTC_DCHECK(IsConsistent());
   }
@@ -232,7 +229,9 @@ class CopyOnWriteBuffer {
   void CloneDataIfReferenced(size_t new_capacity);
 
   // Pre- and postcondition of all methods.
-  bool IsConsistent() const { return (!buffer_ || buffer_->capacity() > 0); }
+  bool IsConsistent() const {
+    return (!buffer_ || buffer_->capacity() > 0);
+  }
 
   // buffer_ is either null, or points to an rtc::Buffer with capacity > 0.
   scoped_refptr<RefCountedObject<Buffer>> buffer_;

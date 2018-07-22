@@ -20,13 +20,15 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class RTCNSGLVideoView;
+@protocol RTCNSGLVideoViewDelegate
 
-@protocol RTCNSGLVideoViewDelegate <RTCVideoViewDelegate>
+- (void)videoView:(RTCNSGLVideoView *)videoView didChangeVideoSize:(CGSize)size;
+
 @end
 
 @interface RTCNSGLVideoView : NSOpenGLView <RTCVideoRenderer>
 
-@property(nonatomic, weak) id<RTCVideoViewDelegate> delegate;
+@property(nonatomic, weak) id<RTCNSGLVideoViewDelegate> delegate;
 
 - (instancetype)initWithFrame:(NSRect)frameRect
                   pixelFormat:(NSOpenGLPixelFormat *)format

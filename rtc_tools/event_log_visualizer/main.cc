@@ -10,12 +10,11 @@
 
 #include <iostream>
 
-#include "logging/rtc_event_log/rtc_event_log_parser_new.h"
+#include "logging/rtc_event_log/rtc_event_log_parser.h"
 #include "rtc_base/flags.h"
 #include "rtc_tools/event_log_visualizer/analyzer.h"
 #include "rtc_tools/event_log_visualizer/plot_base.h"
 #include "rtc_tools/event_log_visualizer/plot_python.h"
-#include "system_wrappers/include/field_trial_default.h"
 #include "test/field_trial.h"
 #include "test/testsupport/fileutils.h"
 
@@ -112,13 +111,9 @@ DEFINE_bool(plot_audio_encoder_dtx, false, "Plot the audio encoder DTX.");
 DEFINE_bool(plot_audio_encoder_num_channels,
             false,
             "Plot the audio encoder number of channels.");
-DEFINE_bool(plot_neteq_stats, false, "Plot the NetEq statistics.");
-DEFINE_bool(plot_ice_candidate_pair_config,
+DEFINE_bool(plot_audio_jitter_buffer,
             false,
-            "Plot the ICE candidate pair config events.");
-DEFINE_bool(plot_ice_connectivity_check,
-            false,
-            "Plot the ICE candidate pair connectivity checks.");
+            "Plot the audio jitter buffer delay profile.");
 
 DEFINE_string(
     force_fieldtrials,
@@ -137,25 +132,8 @@ DEFINE_bool(show_detector_state,
             "Show the state of the delay based BWE detector on the total "
             "bitrate graph");
 
-DEFINE_bool(show_alr_state,
-            false,
-            "Show the state ALR state on the total bitrate graph");
-
-DEFINE_bool(parse_unconfigured_header_extensions,
-            true,
-            "Attempt to parse unconfigured header extensions using the default "
-            "WebRTC mapping. This can give very misleading results if the "
-            "application negotiates a different mapping.");
-
-DEFINE_bool(print_triage_alerts,
-            false,
-            "Print triage alerts, i.e. a list of potential problems.");
-
-DEFINE_bool(normalize_time,
-            true,
-            "Normalize the log timestamps so that the call starts at time 0.");
-
 void SetAllPlotFlags(bool setting);
+
 
 int main(int argc, char* argv[]) {
   std::string program_name = argv[0];
@@ -208,20 +186,11 @@ int main(int argc, char* argv[]) {
   }
 
   webrtc::test::SetExecutablePath(argv[0]);
-  webrtc::test::ValidateFieldTrialsStringOrDie(FLAG_force_fieldtrials);
-  // InitFieldTrialsFromString stores the char*, so the char array must outlive
-  // the application.
-  webrtc::field_trial::InitFieldTrialsFromString(FLAG_force_fieldtrials);
+  webrtc::test::InitFieldTrialsFromString(FLAG_force_fieldtrials);
 
   std::string filename = argv[1];
 
-  webrtc::ParsedRtcEventLogNew::UnconfiguredHeaderExtensions header_extensions =
-      webrtc::ParsedRtcEventLogNew::UnconfiguredHeaderExtensions::kDontParse;
-  if (FLAG_parse_unconfigured_header_extensions) {
-    header_extensions = webrtc::ParsedRtcEventLogNew::
-        UnconfiguredHeaderExtensions::kAttemptWebrtcDefaultConfig;
-  }
-  webrtc::ParsedRtcEventLogNew parsed_log(header_extensions);
+  webrtc::ParsedRtcEventLog parsed_log;
 
   if (!parsed_log.ParseFile(filename)) {
     std::cerr << "Could not parse the entire log file." << std::endl;
@@ -230,34 +199,31 @@ int main(int argc, char* argv[]) {
               << std::endl;
   }
 
-  webrtc::EventLogAnalyzer analyzer(parsed_log, FLAG_normalize_time);
-  std::unique_ptr<webrtc::PlotCollection> collection(
-      new webrtc::PythonPlotCollection());
+  webrtc::plotting::EventLogAnalyzer analyzer(parsed_log);
+  std::unique_ptr<webrtc::plotting::PlotCollection> collection(
+      new webrtc::plotting::PythonPlotCollection());
 
   if (FLAG_plot_incoming_packet_sizes) {
-    analyzer.CreatePacketGraph(webrtc::kIncomingPacket,
+    analyzer.CreatePacketGraph(webrtc::PacketDirection::kIncomingPacket,
                                collection->AppendNewPlot());
   }
   if (FLAG_plot_outgoing_packet_sizes) {
-    analyzer.CreatePacketGraph(webrtc::kOutgoingPacket,
+    analyzer.CreatePacketGraph(webrtc::PacketDirection::kOutgoingPacket,
                                collection->AppendNewPlot());
   }
   if (FLAG_plot_incoming_packet_count) {
-    analyzer.CreateAccumulatedPacketsGraph(webrtc::kIncomingPacket,
-                                           collection->AppendNewPlot());
+    analyzer.CreateAccumulatedPacketsGraph(
+        webrtc::PacketDirection::kIncomingPacket, collection->AppendNewPlot());
   }
   if (FLAG_plot_outgoing_packet_count) {
-    analyzer.CreateAccumulatedPacketsGraph(webrtc::kOutgoingPacket,
-                                           collection->AppendNewPlot());
+    analyzer.CreateAccumulatedPacketsGraph(
+        webrtc::PacketDirection::kOutgoingPacket, collection->AppendNewPlot());
   }
   if (FLAG_plot_audio_playout) {
     analyzer.CreatePlayoutGraph(collection->AppendNewPlot());
   }
   if (FLAG_plot_audio_level) {
-    analyzer.CreateAudioLevelGraph(webrtc::kIncomingPacket,
-                                   collection->AppendNewPlot());
-    analyzer.CreateAudioLevelGraph(webrtc::kOutgoingPacket,
-                                   collection->AppendNewPlot());
+    analyzer.CreateAudioLevelGraph(collection->AppendNewPlot());
   }
   if (FLAG_plot_incoming_sequence_number_delta) {
     analyzer.CreateSequenceNumberGraph(collection->AppendNewPlot());
@@ -272,19 +238,21 @@ int main(int argc, char* argv[]) {
     analyzer.CreateIncomingPacketLossGraph(collection->AppendNewPlot());
   }
   if (FLAG_plot_incoming_bitrate) {
-    analyzer.CreateTotalIncomingBitrateGraph(collection->AppendNewPlot());
+    analyzer.CreateTotalBitrateGraph(webrtc::PacketDirection::kIncomingPacket,
+                                     collection->AppendNewPlot(),
+                                     FLAG_show_detector_state);
   }
   if (FLAG_plot_outgoing_bitrate) {
-    analyzer.CreateTotalOutgoingBitrateGraph(collection->AppendNewPlot(),
-                                             FLAG_show_detector_state,
-                                             FLAG_show_alr_state);
+    analyzer.CreateTotalBitrateGraph(webrtc::PacketDirection::kOutgoingPacket,
+                                     collection->AppendNewPlot(),
+                                     FLAG_show_detector_state);
   }
   if (FLAG_plot_incoming_stream_bitrate) {
-    analyzer.CreateStreamBitrateGraph(webrtc::kIncomingPacket,
+    analyzer.CreateStreamBitrateGraph(webrtc::PacketDirection::kIncomingPacket,
                                       collection->AppendNewPlot());
   }
   if (FLAG_plot_outgoing_stream_bitrate) {
-    analyzer.CreateStreamBitrateGraph(webrtc::kOutgoingPacket,
+    analyzer.CreateStreamBitrateGraph(webrtc::PacketDirection::kOutgoingPacket,
                                       collection->AppendNewPlot());
   }
   if (FLAG_plot_simulated_receiveside_bwe) {
@@ -300,10 +268,7 @@ int main(int argc, char* argv[]) {
     analyzer.CreateFractionLossGraph(collection->AppendNewPlot());
   }
   if (FLAG_plot_timestamps) {
-    analyzer.CreateTimestampGraph(webrtc::kIncomingPacket,
-                                  collection->AppendNewPlot());
-    analyzer.CreateTimestampGraph(webrtc::kOutgoingPacket,
-                                  collection->AppendNewPlot());
+    analyzer.CreateTimestampGraph(collection->AppendNewPlot());
   }
   if (FLAG_plot_pacer_delay) {
     analyzer.CreatePacerDelayGraph(collection->AppendNewPlot());
@@ -326,7 +291,7 @@ int main(int argc, char* argv[]) {
   if (FLAG_plot_audio_encoder_num_channels) {
     analyzer.CreateAudioEncoderNumChannelsGraph(collection->AppendNewPlot());
   }
-  if (FLAG_plot_neteq_stats) {
+  if (FLAG_plot_audio_jitter_buffer) {
     std::string wav_path;
     if (FLAG_wav_filename[0] != '\0') {
       wav_path = FLAG_wav_filename;
@@ -334,61 +299,15 @@ int main(int argc, char* argv[]) {
       wav_path = webrtc::test::ResourcePath(
           "audio_processing/conversational_speech/EN_script2_F_sp2_B1", "wav");
     }
-    auto neteq_stats = analyzer.SimulateNetEq(wav_path, 48000);
-    for (webrtc::EventLogAnalyzer::NetEqStatsGetterMap::const_iterator it =
-             neteq_stats.cbegin();
-         it != neteq_stats.cend(); ++it) {
-      analyzer.CreateAudioJitterBufferGraph(it->first, it->second.get(),
-                                            collection->AppendNewPlot());
-    }
-    analyzer.CreateNetEqNetworkStatsGraph(
-        neteq_stats,
-        [](const webrtc::NetEqNetworkStatistics& stats) {
-          return stats.expand_rate / 16384.f;
-        },
-        "Expand rate", collection->AppendNewPlot());
-    analyzer.CreateNetEqNetworkStatsGraph(
-        neteq_stats,
-        [](const webrtc::NetEqNetworkStatistics& stats) {
-          return stats.speech_expand_rate / 16384.f;
-        },
-        "Speech expand rate", collection->AppendNewPlot());
-    analyzer.CreateNetEqNetworkStatsGraph(
-        neteq_stats,
-        [](const webrtc::NetEqNetworkStatistics& stats) {
-          return stats.accelerate_rate / 16384.f;
-        },
-        "Accelerate rate", collection->AppendNewPlot());
-    analyzer.CreateNetEqNetworkStatsGraph(
-        neteq_stats,
-        [](const webrtc::NetEqNetworkStatistics& stats) {
-          return stats.packet_loss_rate / 16384.f;
-        },
-        "Packet loss rate", collection->AppendNewPlot());
-    analyzer.CreateNetEqLifetimeStatsGraph(
-        neteq_stats,
-        [](const webrtc::NetEqLifetimeStatistics& stats) {
-          return static_cast<float>(stats.concealment_events);
-        },
-        "Concealment events", collection->AppendNewPlot());
-  }
-
-  if (FLAG_plot_ice_candidate_pair_config) {
-    analyzer.CreateIceCandidatePairConfigGraph(collection->AppendNewPlot());
-  }
-  if (FLAG_plot_ice_connectivity_check) {
-    analyzer.CreateIceConnectivityCheckGraph(collection->AppendNewPlot());
+    analyzer.CreateAudioJitterBufferGraph(wav_path, 48000,
+                                          collection->AppendNewPlot());
   }
 
   collection->Draw();
 
-  if (FLAG_print_triage_alerts) {
-    analyzer.CreateTriageNotifications();
-    analyzer.PrintNotifications(stderr);
-  }
-
   return 0;
 }
+
 
 void SetAllPlotFlags(bool setting) {
   FLAG_plot_incoming_packet_sizes = setting;
@@ -416,7 +335,5 @@ void SetAllPlotFlags(bool setting) {
   FLAG_plot_audio_encoder_fec = setting;
   FLAG_plot_audio_encoder_dtx = setting;
   FLAG_plot_audio_encoder_num_channels = setting;
-  FLAG_plot_neteq_stats = setting;
-  FLAG_plot_ice_candidate_pair_config = setting;
-  FLAG_plot_ice_connectivity_check = setting;
+  FLAG_plot_audio_jitter_buffer = setting;
 }

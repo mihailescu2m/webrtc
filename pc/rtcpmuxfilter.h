@@ -11,7 +11,7 @@
 #ifndef PC_RTCPMUXFILTER_H_
 #define PC_RTCPMUXFILTER_H_
 
-#include "pc/sessiondescription.h"
+#include "p2p/base/sessiondescription.h"
 
 namespace cricket {
 

@@ -13,12 +13,10 @@
 
 #include <vector>
 
-#include "absl/types/optional.h"
-#include "api/audio/echo_canceller3_config.h"
-#include "api/audio/echo_control.h"
-#include "modules/audio_processing/aec3/delay_estimate.h"
+#include "api/optional.h"
 #include "modules/audio_processing/aec3/echo_path_variability.h"
 #include "modules/audio_processing/aec3/render_buffer.h"
+#include "modules/audio_processing/include/audio_processing.h"
 
 namespace webrtc {
 
@@ -36,14 +34,11 @@ class EchoRemover {
   // supplied render signal is assumed to be pre-aligned with the capture
   // signal.
   virtual void ProcessCapture(
-      EchoPathVariability echo_path_variability,
+      const rtc::Optional<size_t>& echo_path_delay_samples,
+      const EchoPathVariability& echo_path_variability,
       bool capture_signal_saturation,
-      const absl::optional<DelayEstimate>& external_delay,
-      RenderBuffer* render_buffer,
+      const RenderBuffer& render_buffer,
       std::vector<std::vector<float>>* capture) = 0;
-
-  // Returns the internal delay estimate in blocks.
-  virtual absl::optional<int> Delay() const = 0;
 
   // Updates the status on whether echo leakage is detected in the output of the
   // echo remover.

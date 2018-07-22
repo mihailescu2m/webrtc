@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <sys/socket.h>
 
+
 // Implementation of getifaddrs for Android.
 // Fills out a list of ifaddr structs (see below) which contain information
 // about every network interface available on the host.
